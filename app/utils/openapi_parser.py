@@ -1,6 +1,7 @@
 import json
 import yaml
 import httpx
+import os
 from typing import Dict, List, Any, Union, Optional
 
 from app.models.schema import APIEndpoint, APISpec
@@ -22,6 +23,21 @@ class OpenAPIParser:
                 return json.loads(content)
             else:
                 return yaml.safe_load(content)
+    
+    @staticmethod
+    async def get_raw_content_from_url(url: str) -> str:
+        """从URL获取原始内容
+        
+        Args:
+            url: API规范的URL
+            
+        Returns:
+            原始文本内容
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.text
     
     @staticmethod
     def load_from_string(content: str, file_type: str = "json") -> Dict[str, Any]:
@@ -77,4 +93,23 @@ class OpenAPIParser:
             endpoints=endpoints
         )
         
-        return api_spec 
+        return api_spec
+    
+    @staticmethod
+    def load_from_file(file_path: str) -> Dict[str, Any]:
+        """从文件加载OpenAPI规范
+        
+        Args:
+            file_path: API规范文件路径
+            
+        Returns:
+            解析后的规范数据
+        """
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # 根据文件扩展名判断格式
+        if file_path.lower().endswith('.json'):
+            return json.loads(content)
+        else:
+            return yaml.safe_load(content) 

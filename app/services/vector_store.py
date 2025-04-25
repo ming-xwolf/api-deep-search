@@ -114,8 +114,13 @@ class VectorStore:
                 
         return "\n".join(text_parts)
     
-    def store_api_spec(self, api_spec: APISpec):
-        """存储API规范到向量数据库"""
+    def store_api_spec(self, api_spec: APISpec, file_path: Optional[str] = None):
+        """存储API规范到向量数据库
+        
+        Args:
+            api_spec: API规范对象
+            file_path: API规范文件在磁盘上的路径
+        """
         points = []
         
         for endpoint in api_spec.endpoints:
@@ -134,6 +139,10 @@ class VectorStore:
                 "tags": endpoint.tags,
                 "endpoint": endpoint.dict()
             }
+            
+            # 添加文件路径（如果有）
+            if file_path:
+                payload["file_path"] = file_path
             
             # 创建点
             point_id = str(uuid.uuid4())
@@ -171,7 +180,65 @@ class VectorStore:
                 "method": result.payload.get("method"),
                 "api_title": result.payload.get("api_title"),
                 "api_version": result.payload.get("api_version"),
+                "file_path": result.payload.get("file_path"),
                 "endpoint": APIEndpoint(**endpoint_data) if endpoint_data else None
             })
             
-        return results 
+        return results
+    
+    def clean_collection(self) -> bool:
+        """清理向量数据库集合
+        
+        如果集合存在，则删除并重新创建集合，清空所有数据
+        
+        Returns:
+            bool: 操作是否成功
+        """
+        try:
+            # 检查集合是否存在
+            collections = self.client.get_collections().collections
+            collection_names = [collection.name for collection in collections]
+            
+            # 如果集合存在，删除它
+            if self.collection_name in collection_names:
+                self.client.delete_collection(collection_name=self.collection_name)
+            
+            # 重新创建集合
+            self._ensure_collection_exists()
+            return True
+        except Exception as e:
+            print(f"清理集合时出错: {str(e)}")
+            return False
+    
+    def get_all_file_paths(self) -> List[str]:
+        """获取向量数据库中存储的所有文件路径
+        
+        Returns:
+            List[str]: 所有文件路径的列表
+        """
+        try:
+            # 获取所有点的数量
+            collection_info = self.client.get_collection(self.collection_name)
+            points_count = collection_info.points_count
+            
+            if points_count == 0:
+                return []
+            
+            # 获取所有点
+            scroll_result = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=points_count,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            # 提取所有文件路径
+            file_paths = set()
+            for point in scroll_result[0]:
+                if "file_path" in point.payload:
+                    file_paths.add(point.payload["file_path"])
+            
+            return list(file_paths)
+        except Exception as e:
+            print(f"获取文件路径时出错: {str(e)}")
+            return [] 

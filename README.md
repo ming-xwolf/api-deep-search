@@ -6,8 +6,10 @@
 
 - 加载OpenAPI规范文件(JSON或YAML格式)
 - 将API规范分解并存储到向量数据库中
+- 将API规范原文件保存到磁盘，便于追踪和管理
 - 使用deepseek大模型进行RAG(检索增强生成)检索
 - 提供API端点进行查询和检索
+- 支持一键清理向量数据库和磁盘文件
 
 ## 安装
 
@@ -59,3 +61,10 @@ python app.py
 ```
 
 2. 访问API文档: http://localhost:8000/docs 
+
+3. 主要功能:
+   - 上传API规范: `/api/upload` 接口
+   - 搜索API接口: `/api/search` 接口
+   - 清理所有数据: `/api/clean-collection` 接口
+
+详细使用方法请参考 [USAGE.md](USAGE.md) 

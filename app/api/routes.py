@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import List
 
-from app.models.schema import SearchRequest, SearchResponse, UploadAPISpecRequest, APIEndpoint
+from app.models.schema import SearchRequest, SearchResponse, UploadAPISpecRequest, APIEndpoint, APIEndpointWithSource
 from app.services.vector_store import VectorStore
 from app.services.llm_service import LLMService
+from app.services.file_storage import FileStorage
 from app.utils.openapi_parser import OpenAPIParser
 
 router = APIRouter(prefix="/api", tags=["API"])
@@ -14,6 +15,9 @@ def get_vector_store():
 
 def get_llm_service():
     return LLMService()
+
+def get_file_storage():
+    return FileStorage()
 
 @router.post("/search", response_model=SearchResponse)
 async def search_api(
@@ -36,36 +40,116 @@ async def search_api(
     endpoints = []
     for result in search_results:
         if result.get("endpoint"):
-            endpoints.append(result["endpoint"])
+            # 创建带有源信息的端点对象
+            endpoint = APIEndpointWithSource(
+                **result["endpoint"].dict(),
+                file_path=result.get("file_path"),
+                api_title=result.get("api_title"),
+                api_version=result.get("api_version")
+            )
+            endpoints.append(endpoint)
     
     return SearchResponse(results=endpoints, answer=answer)
 
 @router.post("/upload")
 async def upload_api_spec(
     request: UploadAPISpecRequest,
-    vector_store: VectorStore = Depends(get_vector_store)
+    vector_store: VectorStore = Depends(get_vector_store),
+    file_storage: FileStorage = Depends(get_file_storage)
 ):
     """上传API规范"""
     try:
-        # 处理URL
+        # 获取原始内容
         if request.url:
-            spec_data = await OpenAPIParser.load_from_url(request.url)
-        # 处理内容
+            raw_content = await OpenAPIParser.get_raw_content_from_url(request.url)
+            file_type = "json" if request.url.lower().endswith(".json") else "yaml"
         elif request.content:
-            spec_data = OpenAPIParser.load_from_string(request.content, request.file_type)
+            raw_content = request.content
+            file_type = request.file_type
         else:
             raise HTTPException(status_code=400, detail="必须提供URL或内容")
         
-        # 解析OpenAPI规范
+        # 先尝试解析内容以获取标题和版本信息（用于文件命名）
+        try:
+            if request.url:
+                temp_spec_data = await OpenAPIParser.load_from_url(request.url)
+            else:
+                temp_spec_data = OpenAPIParser.load_from_string(raw_content, file_type)
+                
+            info = temp_spec_data.get('info', {})
+            api_title = info.get('title', 'Unknown API')
+            api_version = info.get('version', '1.0.0')
+        except Exception:
+            # 如果解析失败，使用默认值
+            api_title = "Unknown API"
+            api_version = "1.0.0"
+        
+        # 保存原始文件到磁盘
+        file_path = ""
+        if request.url:
+            file_path = file_storage.save_api_spec_from_url(
+                url=request.url,
+                content=raw_content,
+                api_title=api_title,
+                api_version=api_version
+            )
+        else:
+            file_path = file_storage.save_api_spec(
+                content=raw_content,
+                file_type=file_type,
+                api_title=api_title,
+                api_version=api_version
+            )
+        
+        # 从保存的文件读取并解析API规范
+        spec_data = OpenAPIParser.load_from_file(file_path)
         api_spec = OpenAPIParser.parse_openapi_spec(spec_data)
         
-        # 存储到向量数据库
-        vector_store.store_api_spec(api_spec)
+        # 存储到向量数据库（包含文件路径）
+        vector_store.store_api_spec(api_spec, file_path=file_path)
         
-        return {"message": f"成功上传 {api_spec.title} v{api_spec.version}，包含 {len(api_spec.endpoints)} 个端点"}
+        return {
+            "message": f"成功上传 {api_spec.title} v{api_spec.version}，包含 {len(api_spec.endpoints)} 个端点",
+            "file_path": file_path
+        }
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"处理API规范时出错: {str(e)}")
+
+@router.post("/clean-collection")
+async def clean_collection(
+    vector_store: VectorStore = Depends(get_vector_store),
+    file_storage: FileStorage = Depends(get_file_storage)
+):
+    """清空向量数据库集合和磁盘上的API规范文件"""
+    try:
+        # 获取所有文件路径
+        file_paths = vector_store.get_all_file_paths()
+        file_count = len(file_paths)
+        
+        # 清空向量数据库集合
+        success = vector_store.clean_collection()
+        if not success:
+            raise HTTPException(status_code=500, detail="清空集合失败")
+        
+        # 删除所有文件
+        deleted_count = 0
+        for file_path in file_paths:
+            if file_storage.delete_file(file_path):
+                deleted_count += 1
+        
+        # 如果没有获取到具体文件路径，尝试清空整个上传目录
+        if file_count == 0:
+            total_files, deleted_files = file_storage.clean_upload_directory()
+            return {
+                "message": f"成功清空 {vector_store.collection_name} 集合，并删除了 {deleted_files}/{total_files} 个磁盘文件"
+            }
+        
+        return {
+            "message": f"成功清空 {vector_store.collection_name} 集合，并删除了 {deleted_count}/{file_count} 个磁盘文件"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"清空集合时发生错误: {str(e)}")
 
 @router.get("/health")
 async def health_check():

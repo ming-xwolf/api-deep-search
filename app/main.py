@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from app.config.settings import settings
 from app.api.routes import router as api_router
+
+# 确保上传目录存在
+os.makedirs("upload", exist_ok=True)
 
 # 创建应用
 app = FastAPI(

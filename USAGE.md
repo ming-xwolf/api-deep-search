@@ -109,6 +109,17 @@ Content-Type: application/json
 }
 ```
 
+响应示例:
+
+```json
+{
+  "message": "成功上传 用户管理API v1.0.0，包含 8 个端点",
+  "file_path": "upload/用户管理API_v1.0.0_20240516123045_a1b2c3d4.json"
+}
+```
+
+系统会自动保存API规范文件到`upload`目录下，文件名包含API标题、版本、时间戳和唯一标识符。
+
 #### 搜索API
 
 ```http
@@ -131,12 +142,35 @@ Content-Type: application/json
       "method": "GET",
       "summary": "获取用户列表",
       "description": "返回系统中的用户列表，支持分页和筛选",
-      "parameters": [...]
+      "parameters": [...],
+      "file_path": "upload/用户管理API_v1.0.0_20240516123045_a1b2c3d4.json",
+      "api_title": "用户管理API",
+      "api_version": "1.0.0"
     }
   ],
   "answer": "要获取用户列表，你可以使用GET方法访问/users端点..."
 }
 ```
+
+搜索结果中包含了API端点的详细信息，以及源文件的路径、API标题和版本信息，便于追踪和引用。
+
+#### 清理集合和文件
+
+```http
+POST /api/clean-collection
+```
+
+此API将清空向量数据库中的所有API规范数据，并删除`upload`目录下相关的文件。
+
+响应示例:
+
+```json
+{
+  "message": "成功清空 api_specs 集合，并删除了 8/8 个磁盘文件"
+}
+```
+
+响应消息中会显示成功清空的集合名称，以及成功删除的文件数量。
 
 ## 高级配置
 

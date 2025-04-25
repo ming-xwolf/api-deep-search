@@ -26,9 +26,15 @@ class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
     
+class APIEndpointWithSource(APIEndpoint):
+    """带有源文件信息的API端点数据模型"""
+    file_path: Optional[str] = None
+    api_title: Optional[str] = None
+    api_version: Optional[str] = None
+
 class SearchResponse(BaseModel):
     """搜索响应模型"""
-    results: List[APIEndpoint]
+    results: List[APIEndpointWithSource]
     answer: str
 
 class UploadAPISpecRequest(BaseModel):
