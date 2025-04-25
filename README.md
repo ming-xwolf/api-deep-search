@@ -11,6 +11,8 @@
 
 ## 安装
 
+### 使用pip安装
+
 ```bash
 # 克隆代码库
 git clone <repository-url>
@@ -22,6 +24,20 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # 安装依赖
 pip install -r requirements.txt
+```
+
+### 使用conda安装（推荐）
+
+```bash
+# 克隆代码库
+git clone <repository-url>
+cd api-deep-search
+
+# 创建conda环境
+conda env create -f environment.yml
+
+# 激活环境
+conda activate api-deep-search
 ```
 
 ## 环境变量

@@ -10,11 +10,34 @@ class LLMService:
     
     def __init__(self):
         """初始化LLM服务"""
-        self.client = OpenAI(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url
-        )
+        self._init_llm_client()
         self.model = settings.llm_model
+        self.temperature = settings.temperature
+        self.max_tokens = settings.max_tokens
+    
+    def _init_llm_client(self):
+        """初始化LLM客户端"""
+        if settings.llm_provider == "deepseek":
+            self.client = OpenAI(
+                api_key=settings.deepseek_api_key,
+                base_url=settings.deepseek_base_url
+            )
+        elif settings.llm_provider == "openai":
+            self.client = OpenAI(
+                api_key=settings.openai_api_key,
+                base_url=settings.openai_base_url
+            )
+        elif settings.llm_provider == "siliconflow":
+            self.client = OpenAI(
+                api_key=settings.siliconflow_api_key,
+                base_url=settings.siliconflow_base_url
+            )
+        else:
+            # 默认使用deepseek
+            self.client = OpenAI(
+                api_key=settings.deepseek_api_key,
+                base_url=settings.deepseek_base_url
+            )
     
     def generate_answer(self, query: str, search_results: List[Dict[str, Any]]) -> str:
         """生成查询答案"""
@@ -28,8 +51,8 @@ class LLMService:
                 {"role": "system", "content": "你是一个API专家助手，专门帮助用户理解和使用API。"},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,
-            max_tokens=1000
+            temperature=self.temperature,
+            max_tokens=self.max_tokens
         )
         
         return response.choices[0].message.content

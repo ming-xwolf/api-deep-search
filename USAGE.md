@@ -3,10 +3,27 @@
 ## 环境设置
 
 1. 确保安装Python 3.8+
-2. 安装依赖
-   ```bash
-   pip install -r requirements.txt
-   ```
+2. 安装依赖的方式有两种:
+
+### 方式一: 使用pip安装
+```bash
+pip install -r requirements.txt
+```
+
+### 方式二: 使用conda安装（推荐）
+```bash
+# 方法1: 使用自动化脚本
+# Linux/macOS用户
+./setup_conda.sh
+
+# Windows用户
+setup_conda.bat
+
+# 方法2: 手动创建
+conda env create -f environment.yml
+conda activate api-deep-search
+```
+
 3. 安装Qdrant向量数据库，可通过Docker安装:
    ```bash
    docker run -p 6333:6333 -p 6334:6334 -v ./qdrant_data:/qdrant/storage qdrant/qdrant
@@ -18,6 +35,7 @@
    OPENAI_API_KEY=your_openai_api_key  # 如果使用OpenAI嵌入
    SILICONFLOW_API_KEY=your_siliconflow_api_key  # 如果使用SiliconFlow嵌入
    SILICONFLOW_BASE_URL=https://api.siliconflow.com/v1  # SiliconFlow API的基础URL
+   OPENAI_BASE_URL=https://api.openai.com/v1  # OpenAI API的基础URL
    
    # 嵌入配置
    EMBEDDING_PROVIDER=local  # 可选值: local, openai, siliconflow
@@ -25,7 +43,15 @@
    SILICONFLOW_EMBEDDING_MODEL=embe-medium  # SiliconFlow嵌入模型
    OPENAI_EMBEDDING_MODEL=text-embedding-3-small  # OpenAI嵌入模型
    
-   QDRANT_URL=http://localhost:6333  # 如果使用远程Qdrant服务
+   # LLM配置
+   LLM_PROVIDER=deepseek  # 可选值: deepseek, openai, siliconflow
+   DEEPSEEK_MODEL=deepseek-chat  # DeepSeek模型
+   OPENAI_MODEL=gpt-3.5-turbo  # OpenAI模型
+   SILICONFLOW_MODEL=sf-llama3-70b-chat  # SiliconFlow模型
+   TEMPERATURE=0.3  # 模型温度
+   MAX_TOKENS=1000  # 最大token数
+   
+   QDRANT_URL=http://localhost:16333  # 如果使用远程Qdrant服务
    DEBUG=False
    ```
 
@@ -123,8 +149,12 @@ Content-Type: application/json
    - SiliconFlow模型: 默认使用`embe-medium`(1024维)
 
 2. 大模型配置: 
-   - 模型: 默认使用`deepseek-ai/deepseek-coder-33b-instruct`
-   - API基础URL: 默认为`https://api.deepseek.com/v1`
+   - 提供商: 支持DeepSeek(`deepseek`)、OpenAI(`openai`)和SiliconFlow(`siliconflow`)
+   - DeepSeek模型: 默认使用`deepseek-chat`
+   - OpenAI模型: 默认使用`gpt-3.5-turbo`
+   - SiliconFlow模型: 默认使用`sf-llama3-70b-chat`
+   - 模型温度: 默认为0.3
+   - 最大token数: 默认为1000
 
 3. 向量数据库设置: 集合名称、维度等
 
@@ -145,4 +175,22 @@ Content-Type: application/json
 ### 3. SiliconFlow嵌入
 
 设置`EMBEDDING_PROVIDER=siliconflow`，使用SiliconFlow的文本嵌入API。需要有效的SiliconFlow API密钥。
-SiliconFlow提供了高性能且价格合理的嵌入模型，支持OpenAI兼容的API格式。 
+SiliconFlow提供了高性能且价格合理的嵌入模型，支持OpenAI兼容的API格式。
+
+## 使用不同的LLM模型
+
+本项目支持三种不同的LLM提供商:
+
+### 1. DeepSeek (默认)
+
+设置`LLM_PROVIDER=deepseek`，使用DeepSeek的模型。默认使用`deepseek-chat`模型。
+
+### 2. OpenAI
+
+设置`LLM_PROVIDER=openai`，使用OpenAI的模型。默认使用`gpt-3.5-turbo`模型。
+
+### 3. SiliconFlow
+
+设置`LLM_PROVIDER=siliconflow`，使用SiliconFlow的模型。默认使用`sf-llama3-70b-chat`模型。
+
+SiliconFlow提供了基于Llama 3等开源模型的高性能实现，同时支持OpenAI兼容的API格式，具有性价比优势。 

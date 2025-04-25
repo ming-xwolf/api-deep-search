@@ -16,9 +16,10 @@ class Settings(BaseModel):
     # 模型API配置
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
     siliconflow_base_url: str = os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.com/v1")
+    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     
     # 向量数据库配置
-    qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
+    qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:16333")
     qdrant_collection_name: str = "api_specs"
     
     # 嵌入配置
@@ -34,9 +35,25 @@ class Settings(BaseModel):
     debug: bool = os.getenv("DEBUG", "False").lower() == "true"
     
     # LLM模型配置
-    llm_model: str = "deepseek-ai/deepseek-coder-33b-instruct"
+    llm_provider: Literal["deepseek", "openai", "siliconflow"] = os.getenv("LLM_PROVIDER", "deepseek")
+    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+    siliconflow_model: str = os.getenv("SILICONFLOW_MODEL", "sf-llama3-70b-chat")
+    temperature: float = float(os.getenv("TEMPERATURE", "0.3"))
+    max_tokens: int = int(os.getenv("MAX_TOKENS", "1000"))
     chunk_size: int = 1000
     chunk_overlap: int = 200
+
+    @property
+    def llm_model(self) -> str:
+        """根据提供商获取模型名称"""
+        if self.llm_provider == "deepseek":
+            return self.deepseek_model
+        elif self.llm_provider == "openai":
+            return self.openai_model
+        elif self.llm_provider == "siliconflow":
+            return self.siliconflow_model
+        return self.deepseek_model
 
 # 创建配置实例
 settings = Settings() 
