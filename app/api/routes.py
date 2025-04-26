@@ -48,7 +48,8 @@ async def search_api(
                 **result["endpoint"].dict(),
                 file_path=result.get("file_path"),
                 api_title=result.get("api_title"),
-                api_version=result.get("api_version")
+                api_version=result.get("api_version"),
+                openapi_version=result.get("openapi_version")
             )
             endpoints.append(endpoint)
     
@@ -129,7 +130,11 @@ async def upload_api_spec(
         
         return {
             "message": f"成功上传 {api_spec.title} v{api_spec.version}，包含 {len(api_spec.endpoints)} 个端点",
-            "file_path": file_path
+            "file_path": file_path,
+            "api_title": api_spec.title,
+            "api_version": api_spec.version,
+            "openapi_version": api_spec.openapi_version,
+            "endpoints_count": len(api_spec.endpoints)
         }
     
     except Exception as e:
@@ -189,7 +194,11 @@ async def upload_file_api_spec(
         
         return {
             "message": f"成功上传 {api_spec.title} v{api_spec.version}，包含 {len(api_spec.endpoints)} 个端点",
-            "file_path": file_path
+            "file_path": file_path,
+            "api_title": api_spec.title,
+            "api_version": api_spec.version,
+            "openapi_version": api_spec.openapi_version,
+            "endpoints_count": len(api_spec.endpoints)
         }
     
     except Exception as e:
@@ -266,13 +275,35 @@ async def list_files(
             elif file_name.lower().endswith('.yaml') or file_name.lower().endswith('.yml'):
                 file_type = "YAML"
             
+            # 尝试读取文件内容获取API信息
+            api_title = None
+            api_version = None
+            openapi_version = None
+            try:
+                spec_data = OpenAPIParser.load_from_file(file_path)
+                info = spec_data.get('info', {})
+                api_title = info.get('title')
+                api_version = info.get('version')
+                
+                # 提取OpenAPI规范版本
+                if 'openapi' in spec_data:
+                    openapi_version = spec_data.get('openapi')
+                elif 'swagger' in spec_data:
+                    openapi_version = spec_data.get('swagger')
+            except:
+                # 如果解析失败，使用文件名作为标题
+                pass
+            
             file_infos.append({
                 "file_name": file_name,
                 "file_path": file_path,
                 "file_size": file_size,
                 "file_size_human": f"{file_size / 1024:.2f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.2f} MB",
                 "modified_time": modified_time,
-                "file_type": file_type
+                "file_type": file_type,
+                "api_title": api_title,
+                "api_version": api_version,
+                "openapi_version": openapi_version
             })
         
         # 按修改时间排序（最新的在前面）
@@ -322,4 +353,134 @@ async def delete_file(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"删除文件时出错: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"删除文件时出错: {str(e)}")
+
+@router.get("/openapi_versions")
+async def get_openapi_versions(
+    vector_store: VectorStore = Depends(get_vector_store)
+):
+    """获取系统中所有的OpenAPI规范版本"""
+    try:
+        # 获取所有API的OpenAPI版本
+        versions = vector_store.get_openapi_versions()
+        
+        return {
+            "versions": versions,
+            "count": len(versions)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取OpenAPI版本列表时出错: {str(e)}")
+
+@router.post("/search_by_version")
+async def search_api_by_version(
+    query: str,
+    openapi_version: Optional[str] = None,
+    top_k: int = 5,
+    vector_store: VectorStore = Depends(get_vector_store),
+    llm_service: LLMService = Depends(get_llm_service)
+):
+    """根据OpenAPI版本筛选搜索API"""
+    try:
+        # 使用向量存储搜索相关端点并按版本筛选
+        search_results = vector_store.search_by_version(query, openapi_version, top_k)
+        
+        # 如果没有结果，返回空
+        if not search_results:
+            return SearchResponse(results=[], answer="抱歉，我没有找到相关的API信息。")
+        
+        # 使用LLM生成回答
+        answer = llm_service.generate_answer(query, search_results)
+        
+        # 提取端点结果
+        endpoints = []
+        for result in search_results:
+            if result.get("endpoint"):
+                # 创建带有源信息的端点对象
+                endpoint = APIEndpointWithSource(
+                    **result["endpoint"].dict(),
+                    file_path=result.get("file_path"),
+                    api_title=result.get("api_title"),
+                    api_version=result.get("api_version"),
+                    openapi_version=result.get("openapi_version")
+                )
+                endpoints.append(endpoint)
+        
+        return SearchResponse(results=endpoints, answer=answer)
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"按版本搜索API时出错: {str(e)}")
+
+@router.get("/files_by_version")
+async def list_files_by_version(
+    openapi_version: Optional[str] = None,
+    file_storage: FileStorage = Depends(get_file_storage)
+):
+    """按OpenAPI版本列出文件"""
+    try:
+        # 获取所有文件
+        files = file_storage.list_files()
+        
+        # 准备文件信息
+        file_infos = []
+        for file_path in files:
+            file_name = os.path.basename(file_path)
+            
+            # 尝试读取文件内容获取API信息
+            api_title = None
+            api_version = None
+            spec_openapi_version = None
+            try:
+                spec_data = OpenAPIParser.load_from_file(file_path)
+                info = spec_data.get('info', {})
+                api_title = info.get('title')
+                api_version = info.get('version')
+                
+                # 提取OpenAPI规范版本
+                if 'openapi' in spec_data:
+                    spec_openapi_version = spec_data.get('openapi')
+                elif 'swagger' in spec_data:
+                    spec_openapi_version = spec_data.get('swagger')
+            except:
+                # 如果解析失败，跳过该文件
+                continue
+            
+            # 如果指定了版本筛选条件，但不匹配当前文件，则跳过
+            if openapi_version and spec_openapi_version != openapi_version:
+                continue
+                
+            # 文件符合条件，添加到结果中
+            file_stats = os.stat(file_path)
+            file_size = file_stats.st_size
+            modified_time = datetime.fromtimestamp(file_stats.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            
+            # 确定文件类型
+            file_type = "unknown"
+            if file_name.lower().endswith('.json'):
+                file_type = "JSON"
+            elif file_name.lower().endswith('.yaml') or file_name.lower().endswith('.yml'):
+                file_type = "YAML"
+            
+            file_infos.append({
+                "file_name": file_name,
+                "file_path": file_path,
+                "file_size": file_size,
+                "file_size_human": f"{file_size / 1024:.2f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.2f} MB",
+                "modified_time": modified_time,
+                "file_type": file_type,
+                "api_title": api_title,
+                "api_version": api_version,
+                "openapi_version": spec_openapi_version
+            })
+        
+        # 按修改时间排序（最新的在前面）
+        file_infos.sort(key=lambda x: x["modified_time"], reverse=True)
+        
+        return {
+            "files": file_infos,
+            "total_count": len(file_infos),
+            "filtered_version": openapi_version,
+            "total_size": sum(info["file_size"] for info in file_infos),
+            "total_size_human": f"{sum(info['file_size'] for info in file_infos) / 1024:.2f} KB" if sum(info["file_size"] for info in file_infos) < 1024 * 1024 else f"{sum(info['file_size'] for info in file_infos) / (1024 * 1024):.2f} MB"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}") 

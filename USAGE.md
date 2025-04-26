@@ -255,6 +255,67 @@ Content-Type: application/json
 - 删除成功的消息
 - 从向量数据库中删除的嵌入数据数量
 
+### OpenAPI多版本支持
+
+本系统现已支持多种OpenAPI规范版本，包括OpenAPI 3.x和Swagger 2.x。系统会自动检测和处理不同版本的规范差异。
+
+#### 获取支持的OpenAPI版本
+
+```http
+GET /api/openapi_versions
+```
+
+响应示例：
+
+```json
+{
+  "versions": ["2.0", "3.0.0", "3.0.1", "3.1.0"],
+  "count": 4
+}
+```
+
+#### 按OpenAPI版本搜索API
+
+```http
+POST /api/search_by_version?openapi_version=3.0.0&query=如何获取用户列表&top_k=3
+```
+
+通过指定`openapi_version`参数，可以只搜索特定OpenAPI版本的API端点。
+
+响应与普通搜索相同，但结果会被限制在指定版本的API规范中。
+
+#### 按OpenAPI版本筛选文件列表
+
+```http
+GET /api/files_by_version?openapi_version=3.0.0
+```
+
+通过指定`openapi_version`参数，可以只列出特定OpenAPI版本的API规范文件。
+
+响应示例：
+
+```json
+{
+  "files": [
+    {
+      "file_name": "用户管理API_v1.0.0_20240516123045_a1b2c3d4.json",
+      "file_path": "upload/用户管理API_v1.0.0_20240516123045_a1b2c3d4.json",
+      "file_size": 24680,
+      "file_size_human": "24.10 KB",
+      "modified_time": "2024-05-16 12:30:45",
+      "file_type": "JSON",
+      "api_title": "用户管理API",
+      "api_version": "1.0.0",
+      "openapi_version": "3.0.0"
+    }
+  ],
+  "total_count": 1,
+  "filtered_version": "3.0.0",
+  "total_size": 24680,
+  "total_size_human": "24.10 KB"
+}
+```
+
 ## 高级配置
 
 在`app/config/settings.py`中可以配置:

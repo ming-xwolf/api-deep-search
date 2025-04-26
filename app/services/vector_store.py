@@ -132,6 +132,7 @@ class VectorStore:
             payload = {
                 "api_title": api_spec.title,
                 "api_version": api_spec.version,
+                "openapi_version": api_spec.openapi_version,
                 "path": endpoint.path,
                 "method": endpoint.method,
                 "summary": endpoint.summary,
@@ -180,6 +181,7 @@ class VectorStore:
                 "method": result.payload.get("method"),
                 "api_title": result.payload.get("api_title"),
                 "api_version": result.payload.get("api_version"),
+                "openapi_version": result.payload.get("openapi_version"),
                 "file_path": result.payload.get("file_path"),
                 "endpoint": APIEndpoint(**endpoint_data) if endpoint_data else None
             })
@@ -294,4 +296,79 @@ class VectorStore:
             return len(point_ids)
         except Exception as e:
             print(f"删除嵌入数据时出错: {str(e)}")
-            return 0 
+            return 0
+    
+    def get_openapi_versions(self) -> List[str]:
+        """获取所有存储的OpenAPI规范版本
+        
+        Returns:
+            List[str]: 版本列表
+        """
+        # 查询所有记录，但只返回openapi_version字段
+        query_response = self.client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter=None,
+            limit=10000,
+            with_payload=["openapi_version"],
+            with_vectors=False
+        )
+        
+        # 提取版本并去重
+        versions = set()
+        for record in query_response[0]:
+            version = record.payload.get("openapi_version")
+            if version:
+                versions.add(version)
+        
+        # 返回排序后的版本列表
+        return sorted(list(versions))
+    
+    def search_by_version(self, query: str, openapi_version: Optional[str] = None, top_k: int = 5) -> List[Dict[str, Any]]:
+        """按OpenAPI版本搜索API端点
+        
+        Args:
+            query: 搜索查询
+            openapi_version: 要筛选的OpenAPI版本，如果为None则不筛选
+            top_k: 返回结果数量
+            
+        Returns:
+            搜索结果列表
+        """
+        query_embedding = self._get_embedding(query)
+        
+        # 准备筛选条件
+        search_filter = None
+        if openapi_version:
+            search_filter = models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="openapi_version",
+                        match=models.MatchValue(value=openapi_version)
+                    )
+                ]
+            )
+        
+        # 执行搜索
+        search_results = self.client.search(
+            collection_name=self.collection_name,
+            query_vector=query_embedding,
+            limit=top_k,
+            query_filter=search_filter
+        )
+        
+        # 处理结果
+        results = []
+        for result in search_results:
+            endpoint_data = result.payload.get("endpoint", {})
+            results.append({
+                "score": result.score,
+                "path": result.payload.get("path"),
+                "method": result.payload.get("method"),
+                "api_title": result.payload.get("api_title"),
+                "api_version": result.payload.get("api_version"),
+                "openapi_version": result.payload.get("openapi_version"),
+                "file_path": result.payload.get("file_path"),
+                "endpoint": APIEndpoint(**endpoint_data) if endpoint_data else None
+            })
+            
+        return results 

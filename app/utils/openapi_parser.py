@@ -76,7 +76,16 @@ class OpenAPIParser:
         # 获取服务器信息
         servers = spec_data.get('servers', [])
         
-        # 解析所有端点
+        # 检测OpenAPI规范版本
+        openapi_version = None
+        if 'openapi' in spec_data:
+            # OpenAPI 3.x
+            openapi_version = spec_data.get('openapi')
+        elif 'swagger' in spec_data:
+            # Swagger 2.x
+            openapi_version = spec_data.get('swagger')
+        
+        # 根据不同版本解析所有端点
         endpoints = []
         
         paths = spec_data.get('paths', {})
@@ -88,7 +97,7 @@ class OpenAPIParser:
                 # 跳过非HTTP方法的属性
                 if method in ['parameters', 'summary', 'description', 'servers']:
                     continue
-                    
+                
                 # 创建端点
                 endpoint = APIEndpoint(
                     path=path,
@@ -102,6 +111,21 @@ class OpenAPIParser:
                     operationId=operation.get('operationId', '')
                 )
                 
+                # 根据规范版本处理差异（如果需要）
+                if openapi_version and openapi_version.startswith('2.'):
+                    # Swagger 2.x的特殊处理，例如处理请求体字段
+                    if 'requestBody' not in operation and 'consumes' in operation:
+                        # Swagger 2.x使用parameters+in:body代替requestBody
+                        body_params = [p for p in operation.get('parameters', []) if p.get('in') == 'body']
+                        if body_params:
+                            endpoint.request_body = {
+                                'content': {
+                                    operation.get('consumes', ['application/json'])[0]: {
+                                        'schema': body_params[0].get('schema', {})
+                                    }
+                                }
+                            }
+                
                 endpoints.append(endpoint)
         
         # 创建API规范
@@ -110,7 +134,8 @@ class OpenAPIParser:
             version=version,
             description=description,
             servers=servers,
-            endpoints=endpoints
+            endpoints=endpoints,
+            openapi_version=openapi_version
         )
         
         return api_spec

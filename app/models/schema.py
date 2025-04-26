@@ -20,6 +20,7 @@ class APISpec(BaseModel):
     description: Optional[str] = None
     servers: List[Dict[str, str]] = Field(default_factory=list)
     endpoints: List[APIEndpoint] = Field(default_factory=list)
+    openapi_version: Optional[str] = None  # OpenAPI规范版本，如"3.0.0"
 
 class SearchRequest(BaseModel):
     """搜索请求模型"""
@@ -31,6 +32,7 @@ class APIEndpointWithSource(APIEndpoint):
     file_path: Optional[str] = None
     api_title: Optional[str] = None
     api_version: Optional[str] = None
+    openapi_version: Optional[str] = None  # 添加OpenAPI规范版本信息
 
 class SearchResponse(BaseModel):
     """搜索响应模型"""
