@@ -9,6 +9,9 @@ from app.services.vector_store import VectorStore
 from app.services.llm_service import LLMService
 from app.services.file_storage import FileStorage
 from app.utils.openapi_parser import OpenAPIParser
+from app.services.embedding_service import EmbeddingService
+from app.config import settings
+from app.services.vector_service import QdrantVectorService
 
 router = APIRouter(prefix="/api", tags=["API"])
 
@@ -21,6 +24,12 @@ def get_llm_service():
 
 def get_file_storage():
     return FileStorage()
+
+def get_embedding_service():
+    return EmbeddingService()
+
+def get_vector_service():
+    return QdrantVectorService()
 
 @router.post("/search", response_model=SearchResponse)
 async def search_api(
@@ -483,4 +492,43 @@ async def list_files_by_version(
             "total_size_human": f"{sum(info['file_size'] for info in file_infos) / 1024:.2f} KB" if sum(info["file_size"] for info in file_infos) < 1024 * 1024 else f"{sum(info['file_size'] for info in file_infos) / (1024 * 1024):.2f} MB"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}")
+
+@router.get("/embedding_info")
+async def get_embedding_info(
+    embedding_service: EmbeddingService = Depends(get_embedding_service)
+):
+    """获取嵌入服务信息"""
+    try:
+        return {
+            "provider": embedding_service.embedding_provider,
+            "dimension": embedding_service.get_embedding_dimension(),
+            "model": getattr(embedding_service, "embedding_model_name", None) or settings.embedding_model
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取嵌入服务信息时出错: {str(e)}")
+
+@router.get("/vector_service_info")
+async def get_vector_service_info(
+    vector_service: QdrantVectorService = Depends(get_vector_service)
+):
+    """获取向量数据库服务信息"""
+    try:
+        # 获取集合信息
+        try:
+            collection_info = vector_service.get_collection_info()
+            points_count = collection_info.points_count
+            collection_exists = True
+        except Exception:
+            points_count = 0
+            collection_exists = False
+        
+        return {
+            "service_type": "qdrant",
+            "collection_name": vector_service.collection_name,
+            "collection_exists": collection_exists,
+            "points_count": points_count,
+            "url": settings.qdrant_url
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取向量服务信息时出错: {str(e)}") 

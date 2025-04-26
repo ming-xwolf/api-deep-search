@@ -255,6 +255,58 @@ Content-Type: application/json
 - 删除成功的消息
 - 从向量数据库中删除的嵌入数据数量
 
+#### 获取嵌入服务信息
+
+```http
+GET /api/embedding_info
+```
+
+此API返回当前系统使用的嵌入服务相关信息。
+
+响应示例：
+
+```json
+{
+  "provider": "local",
+  "dimension": 1024,
+  "model": "BAAI/bge-large-zh-v1.5"
+}
+```
+
+或者使用其他提供商时：
+
+```json
+{
+  "provider": "openai",
+  "dimension": 1536,
+  "model": "text-embedding-3-small"
+}
+```
+
+通过此API可以了解当前系统使用的嵌入模型信息，包括提供商、向量维度和模型名称。
+
+#### 获取向量服务信息
+
+```http
+GET /api/vector_service_info
+```
+
+此API返回当前系统使用的向量数据库服务相关信息。
+
+响应示例：
+
+```json
+{
+  "service_type": "qdrant",
+  "collection_name": "api_specs",
+  "collection_exists": true,
+  "points_count": 235,
+  "url": "http://localhost:6333"
+}
+```
+
+通过此API可以了解当前系统使用的向量数据库信息，包括服务类型、集合名称、集合是否存在、向量数量和服务URL。
+
 ### OpenAPI多版本支持
 
 本系统现已支持多种OpenAPI规范版本，包括OpenAPI 3.x和Swagger 2.x。系统会自动检测和处理不同版本的规范差异。
@@ -337,6 +389,48 @@ GET /api/files_by_version?openapi_version=3.0.0
 3. 向量数据库设置: 集合名称、维度等
 
 4. 分块设置: 文本分块大小和重叠等
+
+## 模块化服务架构
+
+本项目采用模块化的服务架构，将不同功能分离到独立的服务类中：
+
+### 1. 嵌入服务 (EmbeddingService)
+
+`app/services/embedding_service.py` 实现了多种嵌入模型的支持：
+- 本地模型 (使用SentenceTransformers)
+- OpenAI API
+- SiliconFlow API
+
+每种嵌入提供商都有统一的接口，可以轻松切换或扩展新的提供商。
+
+### 2. 向量数据库服务 (QdrantVectorService)
+
+`app/services/vector_service.py` 实现了Qdrant向量数据库的操作：
+- 集合管理 (创建、删除)
+- 点操作 (增删改查)
+- 向量搜索
+
+### 3. 向量存储服务 (VectorStore)
+
+`app/services/vector_store.py` 使用上述两个底层服务，提供更高级的业务逻辑：
+- API规范的存储和检索
+- 按版本搜索
+- 文件路径管理
+
+### 4. 文件存储服务 (FileStorage)
+
+`app/services/file_storage.py` 负责处理文件系统操作：
+- 保存上传的API规范文件
+- 生成文件名
+- 删除文件
+
+### 5. LLM服务 (LLMService)
+
+`app/services/llm_service.py` 处理与大模型的交互：
+- 生成API搜索结果的回答
+- 支持多种LLM提供商
+
+这种模块化的服务架构使系统更容易维护和扩展。例如，可以轻松添加新的嵌入模型提供商，或者替换向量数据库为其他实现，同时保持API接口不变。
 
 ## 使用不同的嵌入模型
 

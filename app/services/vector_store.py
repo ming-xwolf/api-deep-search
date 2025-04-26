@@ -2,83 +2,29 @@ from typing import List, Dict, Any, Optional
 import json
 import uuid
 
-from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from sentence_transformers import SentenceTransformer
-from openai import OpenAI
 
-from app.config.settings import settings
 from app.models.schema import APIEndpoint, APISpec
+from app.services.embedding_service import EmbeddingService
+from app.services.vector_service import QdrantVectorService
 
 class VectorStore:
     """向量数据库存储服务"""
     
     def __init__(self):
-        # 初始化Qdrant客户端
-        self.client = QdrantClient(url=settings.qdrant_url)
-        self.collection_name = settings.qdrant_collection_name
-        
-        # 初始化嵌入服务
-        self._init_embedding_service()
+        # 初始化向量服务和嵌入服务
+        self.vector_service = QdrantVectorService()
+        self.embedding_service = EmbeddingService()
         
         # 确保集合存在
-        self._ensure_collection_exists()
+        self.vector_service.ensure_collection_exists(
+            vector_size=self.embedding_service.get_embedding_dimension()
+        )
     
-    def _init_embedding_service(self):
-        """初始化嵌入服务"""
-        self.embedding_provider = settings.embedding_provider
-        
-        if self.embedding_provider == "local":
-            # 使用本地Sentence Transformers模型
-            self.embedding_model = SentenceTransformer(settings.embedding_model)
-            self.embedding_dimension = settings.embedding_dimension
-        elif self.embedding_provider == "openai":
-            # 使用OpenAI API
-            self.openai_client = OpenAI(api_key=settings.openai_api_key)
-            self.embedding_model_name = settings.openai_embedding_model
-            self.embedding_dimension = 1536  # OpenAI的text-embedding-3-small维度
-        elif self.embedding_provider == "siliconflow":
-            # 使用SiliconFlow API
-            self.siliconflow_client = OpenAI(
-                api_key=settings.siliconflow_api_key,
-                base_url=settings.siliconflow_base_url
-            )
-            self.embedding_model_name = settings.siliconflow_embedding_model
-            self.embedding_dimension = 1024  # SiliconFlow的embe-medium维度
-    
-    def _ensure_collection_exists(self):
-        """确保向量集合存在"""
-        collections = self.client.get_collections().collections
-        collection_names = [collection.name for collection in collections]
-        
-        if self.collection_name not in collection_names:
-            self.client.create_collection(
-                collection_name=self.collection_name,
-                vectors_config=models.VectorParams(
-                    size=self.embedding_dimension,
-                    distance=models.Distance.COSINE
-                )
-            )
-    
-    def _get_embedding(self, text: str) -> List[float]:
-        """获取文本嵌入向量"""
-        if self.embedding_provider == "local":
-            # 使用本地模型
-            return self.embedding_model.encode(text).tolist()
-        elif self.embedding_provider == "openai":
-            # 使用OpenAI API
-            response = self.openai_client.embeddings.create(
-                model=self.embedding_model_name,
-                input=text
-            )
-            return response.data[0].embedding
-        elif self.embedding_provider == "siliconflow":
-            # 使用SiliconFlow API
-            response = self.siliconflow_client.embeddings.create(
-                model=self.embedding_model_name,
-                input=text
-            )
-            return response.data[0].embedding
+    @property
+    def collection_name(self) -> str:
+        """获取集合名称"""
+        return self.vector_service.collection_name
     
     def _prepare_endpoint_text(self, endpoint: APIEndpoint) -> str:
         """准备用于嵌入的端点文本"""
@@ -126,7 +72,7 @@ class VectorStore:
         for endpoint in api_spec.endpoints:
             # 准备文本并获取嵌入
             text = self._prepare_endpoint_text(endpoint)
-            embedding = self._get_embedding(text)
+            embedding = self.embedding_service.get_embedding(text)
             
             # 准备元数据
             payload = {
@@ -156,18 +102,13 @@ class VectorStore:
             )
         
         # 批量插入点
-        if points:
-            self.client.upsert(
-                collection_name=self.collection_name,
-                points=points
-            )
+        self.vector_service.upsert_points(points)
     
     def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """搜索最相关的API端点"""
-        query_embedding = self._get_embedding(query)
+        query_embedding = self.embedding_service.get_embedding(query)
         
-        search_results = self.client.search(
-            collection_name=self.collection_name,
+        search_results = self.vector_service.search(
             query_vector=query_embedding,
             limit=top_k
         )
@@ -197,16 +138,15 @@ class VectorStore:
             bool: 操作是否成功
         """
         try:
-            # 检查集合是否存在
-            collections = self.client.get_collections().collections
-            collection_names = [collection.name for collection in collections]
-            
-            # 如果集合存在，删除它
-            if self.collection_name in collection_names:
-                self.client.delete_collection(collection_name=self.collection_name)
+            # 删除集合
+            success = self.vector_service.delete_collection()
+            if not success:
+                return False
             
             # 重新创建集合
-            self._ensure_collection_exists()
+            self.vector_service.ensure_collection_exists(
+                vector_size=self.embedding_service.get_embedding_dimension()
+            )
             return True
         except Exception as e:
             print(f"清理集合时出错: {str(e)}")
@@ -220,15 +160,14 @@ class VectorStore:
         """
         try:
             # 获取所有点的数量
-            collection_info = self.client.get_collection(self.collection_name)
+            collection_info = self.vector_service.get_collection_info()
             points_count = collection_info.points_count
             
             if points_count == 0:
                 return []
             
             # 获取所有点
-            scroll_result = self.client.scroll(
-                collection_name=self.collection_name,
+            scroll_result = self.vector_service.scroll(
                 limit=points_count,
                 with_payload=True,
                 with_vectors=False
@@ -256,24 +195,25 @@ class VectorStore:
         """
         try:
             # 获取所有点的数量
-            collection_info = self.client.get_collection(self.collection_name)
+            collection_info = self.vector_service.get_collection_info()
             points_count = collection_info.points_count
             
             if points_count == 0:
                 return 0
             
             # 获取所有匹配该文件路径的点
-            scroll_result = self.client.scroll(
-                collection_name=self.collection_name,
+            file_filter = models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="file_path",
+                        match=models.MatchValue(value=file_path)
+                    )
+                ]
+            )
+            
+            scroll_result = self.vector_service.scroll(
                 limit=points_count,
-                filter=models.Filter(
-                    must=[
-                        models.FieldCondition(
-                            key="file_path",
-                            match=models.MatchValue(value=file_path)
-                        )
-                    ]
-                ),
+                scroll_filter=file_filter,
                 with_payload=False,
                 with_vectors=False
             )
@@ -286,12 +226,7 @@ class VectorStore:
                 return 0
             
             # 删除所有匹配的点
-            self.client.delete(
-                collection_name=self.collection_name,
-                points_selector=models.PointIdsList(
-                    points=point_ids
-                )
-            )
+            self.vector_service.delete_points(point_ids)
             
             return len(point_ids)
         except Exception as e:
@@ -305,9 +240,7 @@ class VectorStore:
             List[str]: 版本列表
         """
         # 查询所有记录，但只返回openapi_version字段
-        query_response = self.client.scroll(
-            collection_name=self.collection_name,
-            scroll_filter=None,
+        query_response = self.vector_service.scroll(
             limit=10000,
             with_payload=["openapi_version"],
             with_vectors=False
@@ -334,7 +267,7 @@ class VectorStore:
         Returns:
             搜索结果列表
         """
-        query_embedding = self._get_embedding(query)
+        query_embedding = self.embedding_service.get_embedding(query)
         
         # 准备筛选条件
         search_filter = None
@@ -349,8 +282,7 @@ class VectorStore:
             )
         
         # 执行搜索
-        search_results = self.client.search(
-            collection_name=self.collection_name,
+        search_results = self.vector_service.search(
             query_vector=query_embedding,
             limit=top_k,
             query_filter=search_filter
