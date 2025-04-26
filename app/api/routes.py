@@ -118,7 +118,7 @@ async def upload_api_spec(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"处理API规范时出错: {str(e)}")
 
-@router.post("/clean-collection")
+@router.post("/clean")
 async def clean_collection(
     vector_store: VectorStore = Depends(get_vector_store),
     file_storage: FileStorage = Depends(get_file_storage)
@@ -201,4 +201,41 @@ async def list_files(
             "total_size_human": f"{sum(info['file_size'] for info in file_infos) / 1024:.2f} KB" if sum(info["file_size"] for info in file_infos) < 1024 * 1024 else f"{sum(info['file_size'] for info in file_infos) / (1024 * 1024):.2f} MB"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}")
+
+@router.post("/delete")
+async def delete_file(
+    file_name: str = Body(..., embed=True),
+    vector_store: VectorStore = Depends(get_vector_store),
+    file_storage: FileStorage = Depends(get_file_storage)
+):
+    """根据文件名删除磁盘上的文件并从向量数据库中删除对应的embedding
+    
+    Args:
+        file_name: 要删除的文件名
+    """
+    try:
+        # 获取文件路径
+        file_path = os.path.join(file_storage.upload_dir, file_name)
+        
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail=f"文件 {file_name} 不存在")
+        
+        # 从向量数据库中删除嵌入数据
+        deleted_embeddings = vector_store.delete_embeddings_by_file_path(file_path)
+        
+        # 从磁盘中删除文件
+        file_deleted = file_storage.delete_file(file_path)
+        
+        if not file_deleted:
+            raise HTTPException(status_code=500, detail=f"删除文件 {file_name} 失败")
+        
+        return {
+            "message": f"成功删除文件 {file_name} 及其对应的向量嵌入",
+            "deleted_embeddings_count": deleted_embeddings
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除文件时出错: {str(e)}") 

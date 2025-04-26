@@ -157,7 +157,7 @@ Content-Type: application/json
 #### 清理集合和文件
 
 ```http
-POST /api/clean-collection
+POST /api/clean
 ```
 
 此API将清空向量数据库中的所有API规范数据，并删除`upload`目录下相关的文件。
@@ -213,6 +213,32 @@ GET /api/files
 - 每个文件的名称、路径、大小（字节数和人类可读格式）、修改时间和文件类型
 - 总文件数量
 - 总文件大小（字节数和人类可读格式）
+
+#### 删除单个文件
+
+```http
+POST /api/delete
+Content-Type: application/json
+
+{
+  "file_name": "用户管理API_v1.0.0_20240516123045_a1b2c3d4.json"
+}
+```
+
+此API将删除指定的API规范文件，同时从向量数据库中删除对应的嵌入数据。
+
+响应示例:
+
+```json
+{
+  "message": "成功删除文件 用户管理API_v1.0.0_20240516123045_a1b2c3d4.json 及其对应的向量嵌入",
+  "deleted_embeddings_count": 8
+}
+```
+
+响应内容包括:
+- 删除成功的消息
+- 从向量数据库中删除的嵌入数据数量
 
 ## 高级配置
 

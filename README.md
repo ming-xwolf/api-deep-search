@@ -10,6 +10,7 @@
 - 使用deepseek大模型进行RAG(检索增强生成)检索
 - 提供API端点进行查询和检索
 - 支持一键清理向量数据库和磁盘文件
+- 支持删除单个API规范文件及其对应的向量嵌入
 
 ## 安装
 
@@ -66,6 +67,7 @@ python app.py
    - 上传API规范: `/api/upload` 接口
    - 搜索API接口: `/api/search` 接口
    - 列出文件: `/api/files` 接口
-   - 清理所有数据: `/api/clean-collection` 接口
+   - 清理所有数据: `/api/clean` 接口
+   - 删除单个文件: `/api/delete` 接口
 
 详细使用方法请参考 [USAGE.md](USAGE.md) 

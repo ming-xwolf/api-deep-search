@@ -241,4 +241,57 @@ class VectorStore:
             return list(file_paths)
         except Exception as e:
             print(f"获取文件路径时出错: {str(e)}")
-            return [] 
+            return []
+            
+    def delete_embeddings_by_file_path(self, file_path: str) -> int:
+        """根据文件路径删除向量数据库中的嵌入数据
+        
+        Args:
+            file_path: 文件路径
+            
+        Returns:
+            int: 删除的嵌入数据数量
+        """
+        try:
+            # 获取所有点的数量
+            collection_info = self.client.get_collection(self.collection_name)
+            points_count = collection_info.points_count
+            
+            if points_count == 0:
+                return 0
+            
+            # 获取所有匹配该文件路径的点
+            scroll_result = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=points_count,
+                filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="file_path",
+                            match=models.MatchValue(value=file_path)
+                        )
+                    ]
+                ),
+                with_payload=False,
+                with_vectors=False
+            )
+            
+            # 提取所有点的ID
+            point_ids = [point.id for point in scroll_result[0]]
+            
+            # 如果没有匹配的点，直接返回
+            if not point_ids:
+                return 0
+            
+            # 删除所有匹配的点
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=models.PointIdsList(
+                    points=point_ids
+                )
+            )
+            
+            return len(point_ids)
+        except Exception as e:
+            print(f"删除嵌入数据时出错: {str(e)}")
+            return 0 
