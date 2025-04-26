@@ -87,6 +87,10 @@ python examples/search_api.py
 
 #### 上传API规范
 
+上传API规范有三种方式，分别由两个不同的接口提供：
+
+1. 通过URL上传（使用`/api/upload`接口）：
+
 ```http
 POST /api/upload
 Content-Type: application/json
@@ -97,7 +101,7 @@ Content-Type: application/json
 }
 ```
 
-或者：
+2. 通过JSON或YAML内容上传（使用`/api/upload`接口）：
 
 ```http
 POST /api/upload
@@ -108,6 +112,17 @@ Content-Type: application/json
   "file_type": "json"
 }
 ```
+
+3. 通过本地文件上传（使用`/api/upload_file`接口）：
+
+```http
+POST /api/upload_file
+Content-Type: multipart/form-data
+
+file=@/path/to/local/openapi.json
+```
+
+上传本地文件时，系统会自动检测文件格式（JSON或YAML）并解析API标题和版本信息。
 
 响应示例:
 

@@ -3,6 +3,7 @@ import yaml
 import httpx
 import os
 from typing import Dict, List, Any, Union, Optional
+import chardet
 
 from app.models.schema import APIEndpoint, APISpec
 
@@ -12,17 +13,24 @@ class OpenAPIParser:
     @staticmethod
     async def load_from_url(url: str) -> Dict[str, Any]:
         """从URL加载OpenAPI规范"""
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url)
             response.raise_for_status()
             
             content = response.text
             
             # 根据内容类型判断是JSON还是YAML
-            if url.endswith('.json') or response.headers.get('content-type', '').startswith('application/json'):
-                return json.loads(content)
+            content_type = response.headers.get('content-type', '')
+            if url.endswith('.json') or content_type.startswith('application/json'):
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"解析JSON失败: {str(e)}")
             else:
-                return yaml.safe_load(content)
+                try:
+                    return yaml.safe_load(content)
+                except yaml.YAMLError as e:
+                    raise ValueError(f"解析YAML失败: {str(e)}")
     
     @staticmethod
     async def get_raw_content_from_url(url: str) -> str:
@@ -34,18 +42,27 @@ class OpenAPIParser:
         Returns:
             原始文本内容
         """
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            return response.text
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.get(url)
+                response.raise_for_status()
+                return response.text
+            except httpx.HTTPError as e:
+                raise ValueError(f"获取URL内容失败: {str(e)}")
     
     @staticmethod
     def load_from_string(content: str, file_type: str = "json") -> Dict[str, Any]:
         """从字符串加载OpenAPI规范"""
         if file_type.lower() == "json":
-            return json.loads(content)
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"解析JSON失败: {str(e)}")
         else:
-            return yaml.safe_load(content)
+            try:
+                return yaml.safe_load(content)
+            except yaml.YAMLError as e:
+                raise ValueError(f"解析YAML失败: {str(e)}")
     
     @staticmethod
     def parse_openapi_spec(spec_data: Dict[str, Any]) -> APISpec:
@@ -63,6 +80,9 @@ class OpenAPIParser:
         endpoints = []
         
         paths = spec_data.get('paths', {})
+        if not paths:
+            raise ValueError("无效的OpenAPI规范: 缺少paths部分")
+            
         for path, path_item in paths.items():
             for method, operation in path_item.items():
                 # 跳过非HTTP方法的属性
@@ -105,11 +125,44 @@ class OpenAPIParser:
         Returns:
             解析后的规范数据
         """
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        # 读取文件内容并检测编码
+        with open(file_path, 'rb') as f:
+            file_content = f.read()
+            
+        # 检测编码
+        result = chardet.detect(file_content)
+        encoding = result['encoding'] or 'utf-8'
+        
+        # 解码内容
+        content = file_content.decode(encoding)
             
         # 根据文件扩展名判断格式
         if file_path.lower().endswith('.json'):
-            return json.loads(content)
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"解析JSON文件失败: {str(e)}")
         else:
-            return yaml.safe_load(content) 
+            try:
+                return yaml.safe_load(content)
+            except yaml.YAMLError as e:
+                raise ValueError(f"解析YAML文件失败: {str(e)}")
+            
+    @staticmethod
+    def determine_file_type(filename: str) -> str:
+        """根据文件名确定文件类型
+        
+        Args:
+            filename: 文件名
+            
+        Returns:
+            文件类型: "json" 或 "yaml"
+        """
+        lower_filename = filename.lower()
+        if lower_filename.endswith('.json'):
+            return "json"
+        elif lower_filename.endswith('.yaml') or lower_filename.endswith('.yml'):
+            return "yaml"
+        else:
+            # 默认为JSON
+            return "json" 

@@ -11,6 +11,7 @@
 - 提供API端点进行查询和检索
 - 支持一键清理向量数据库和磁盘文件
 - 支持删除单个API规范文件及其对应的向量嵌入
+- 支持从本地磁盘上传API规范文件
 
 ## 安装
 
@@ -64,7 +65,8 @@ python app.py
 2. 访问API文档: http://localhost:8000/docs 
 
 3. 主要功能:
-   - 上传API规范: `/api/upload` 接口
+   - 上传API规范(URL或内容): `/api/upload` 接口
+   - 上传API规范(本地文件): `/api/upload_file` 接口
    - 搜索API接口: `/api/search` 接口
    - 列出文件: `/api/files` 接口
    - 清理所有数据: `/api/clean` 接口

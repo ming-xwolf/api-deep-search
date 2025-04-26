@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
-from typing import List, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, Body, File, UploadFile, Form
+from typing import List, Dict, Any, Optional
 import os
 from datetime import datetime
+import tempfile
 
 from app.models.schema import SearchRequest, SearchResponse, UploadAPISpecRequest, APIEndpoint, APIEndpointWithSource
 from app.services.vector_store import VectorStore
@@ -59,36 +60,51 @@ async def upload_api_spec(
     vector_store: VectorStore = Depends(get_vector_store),
     file_storage: FileStorage = Depends(get_file_storage)
 ):
-    """上传API规范"""
+    """通过URL或内容上传API规范
+    
+    支持两种上传方式：
+    1. 通过URL上传
+    2. 通过JSON或YAML内容上传
+    """
     try:
-        # 获取原始内容
+        # 准备变量
+        raw_content = None
+        file_type = None
+        api_title = "Unknown API"
+        api_version = "1.0.0"
+        
+        # 根据上传方式处理输入
         if request.url:
+            # 方式1: URL上传
             raw_content = await OpenAPIParser.get_raw_content_from_url(request.url)
             file_type = "json" if request.url.lower().endswith(".json") else "yaml"
+            
         elif request.content:
+            # 方式2: 内容上传
             raw_content = request.content
             file_type = request.file_type
+            
         else:
             raise HTTPException(status_code=400, detail="必须提供URL或内容")
         
-        # 先尝试解析内容以获取标题和版本信息（用于文件命名）
+        # 解析API信息（用于文件命名）
         try:
             if request.url:
-                temp_spec_data = await OpenAPIParser.load_from_url(request.url)
+                spec_data = await OpenAPIParser.load_from_url(request.url)
             else:
-                temp_spec_data = OpenAPIParser.load_from_string(raw_content, file_type)
+                spec_data = OpenAPIParser.load_from_string(raw_content, file_type)
                 
-            info = temp_spec_data.get('info', {})
-            api_title = info.get('title', 'Unknown API')
-            api_version = info.get('version', '1.0.0')
+            info = spec_data.get('info', {})
+            api_title = info.get('title', api_title)
+            api_version = info.get('version', api_version)
         except Exception:
             # 如果解析失败，使用默认值
-            api_title = "Unknown API"
-            api_version = "1.0.0"
+            pass
         
-        # 保存原始文件到磁盘
+        # 保存文件到目标位置
         file_path = ""
         if request.url:
+            # 从URL保存
             file_path = file_storage.save_api_spec_from_url(
                 url=request.url,
                 content=raw_content,
@@ -96,6 +112,7 @@ async def upload_api_spec(
                 api_version=api_version
             )
         else:
+            # 从内容保存
             file_path = file_storage.save_api_spec(
                 content=raw_content,
                 file_type=file_type,
@@ -103,11 +120,11 @@ async def upload_api_spec(
                 api_version=api_version
             )
         
-        # 从保存的文件读取并解析API规范
+        # 解析API规范
         spec_data = OpenAPIParser.load_from_file(file_path)
         api_spec = OpenAPIParser.parse_openapi_spec(spec_data)
         
-        # 存储到向量数据库（包含文件路径）
+        # 存储到向量数据库
         vector_store.store_api_spec(api_spec, file_path=file_path)
         
         return {
@@ -116,6 +133,73 @@ async def upload_api_spec(
         }
     
     except Exception as e:
+        raise HTTPException(status_code=500, detail=f"处理API规范时出错: {str(e)}")
+
+@router.post("/upload_file")
+async def upload_file_api_spec(
+    file: UploadFile = File(...),
+    vector_store: VectorStore = Depends(get_vector_store),
+    file_storage: FileStorage = Depends(get_file_storage)
+):
+    """通过本地文件上传API规范"""
+    try:
+        # 准备变量
+        temp_file_path = None
+        api_title = "Unknown API"
+        api_version = "1.0.0"
+        
+        # 获取原始文件名和类型
+        original_filename = file.filename
+        file_type = OpenAPIParser.determine_file_type(original_filename)
+        
+        # 使用临时文件处理上传内容
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_file_path = temp_file.name
+            content = await file.read()
+            temp_file.write(content)
+        
+        try:
+            # 解析API信息
+            spec_data = OpenAPIParser.load_from_file(temp_file_path)
+            info = spec_data.get('info', {})
+            api_title = info.get('title', api_title)
+            api_version = info.get('version', api_version)
+        except Exception:
+            # 如果解析失败，使用文件名作为标题
+            api_title = os.path.splitext(original_filename)[0]
+        
+        # 保存文件到目标位置
+        file_path = file_storage.save_api_spec_from_file(
+            uploaded_file_path=temp_file_path,
+            file_type=file_type,
+            api_title=api_title,
+            api_version=api_version
+        )
+            
+        # 清理临时文件
+        if os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+            
+        # 解析API规范
+        spec_data = OpenAPIParser.load_from_file(file_path)
+        api_spec = OpenAPIParser.parse_openapi_spec(spec_data)
+        
+        # 存储到向量数据库
+        vector_store.store_api_spec(api_spec, file_path=file_path)
+        
+        return {
+            "message": f"成功上传 {api_spec.title} v{api_spec.version}，包含 {len(api_spec.endpoints)} 个端点",
+            "file_path": file_path
+        }
+    
+    except Exception as e:
+        # 清理任何可能残留的临时文件
+        if 'temp_file_path' in locals() and temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+                
         raise HTTPException(status_code=500, detail=f"处理API规范时出错: {str(e)}")
 
 @router.post("/clean")

@@ -3,8 +3,10 @@ import uuid
 import json
 import yaml
 import glob
+import shutil
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Tuple
+import chardet
 
 class FileStorage:
     """文件存储服务，用于保存上传的API规范文件"""
@@ -22,6 +24,41 @@ class FileStorage:
         """确保上传目录存在"""
         os.makedirs(self.upload_dir, exist_ok=True)
     
+    def _generate_file_name(self, 
+                          api_title: Optional[str] = None, 
+                          api_version: Optional[str] = None,
+                          file_type: str = "json") -> str:
+        """生成文件名
+        
+        Args:
+            api_title: API标题
+            api_version: API版本
+            file_type: 文件类型
+            
+        Returns:
+            生成的文件名
+        """
+        # 生成时间戳和唯一ID
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        
+        # 准备文件名部分
+        filename_parts = []
+        
+        if api_title:
+            # 替换不合法的文件名字符
+            safe_title = "".join(c if c.isalnum() or c in "-_" else "_" for c in api_title)
+            filename_parts.append(safe_title)
+        
+        if api_version:
+            filename_parts.append(f"v{api_version}")
+        
+        filename_parts.append(timestamp)
+        filename_parts.append(unique_id)
+        
+        # 组合文件名
+        return "_".join(filename_parts) + f".{file_type}"
+    
     def save_api_spec(self, 
                      content: str, 
                      file_type: str = "json", 
@@ -38,22 +75,8 @@ class FileStorage:
         Returns:
             保存的文件路径
         """
-        # 生成一个唯一的文件名
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename_parts = []
-        
-        if api_title:
-            # 替换不合法的文件名字符
-            safe_title = "".join(c if c.isalnum() or c in "-_" else "_" for c in api_title)
-            filename_parts.append(safe_title)
-        
-        if api_version:
-            filename_parts.append(f"v{api_version}")
-        
-        filename_parts.append(timestamp)
-        filename_parts.append(str(uuid.uuid4())[:8])
-        
-        filename = "_".join(filename_parts) + f".{file_type}"
+        # 生成文件名和路径
+        filename = self._generate_file_name(api_title, api_version, file_type)
         file_path = os.path.join(self.upload_dir, filename)
         
         # 美化JSON格式输出（如果是JSON）
@@ -98,6 +121,41 @@ class FileStorage:
             api_version=api_version
         ) 
     
+    def save_api_spec_from_file(self, 
+                               uploaded_file_path: str,
+                               file_type: str,
+                               api_title: Optional[str] = None, 
+                               api_version: Optional[str] = None) -> str:
+        """从上传的文件保存API规范
+        
+        Args:
+            uploaded_file_path: 上传的临时文件路径
+            file_type: 文件类型，支持 "json" 或 "yaml"
+            api_title: API标题
+            api_version: API版本
+            
+        Returns:
+            保存的文件路径
+        """
+        # 读取文件内容并检测编码
+        with open(uploaded_file_path, 'rb') as f:
+            file_content = f.read()
+            
+        # 检测编码
+        result = chardet.detect(file_content)
+        encoding = result['encoding'] or 'utf-8'
+        
+        # 解码内容
+        content = file_content.decode(encoding)
+            
+        # 保存到目标位置
+        return self.save_api_spec(
+            content=content,
+            file_type=file_type,
+            api_title=api_title,
+            api_version=api_version
+        )
+    
     def delete_file(self, file_path: str) -> bool:
         """删除指定的文件
         
@@ -116,11 +174,11 @@ class FileStorage:
             print(f"删除文件失败: {str(e)}")
             return False
     
-    def clean_upload_directory(self) -> tuple[int, int]:
+    def clean_upload_directory(self) -> Tuple[int, int]:
         """清空上传目录中的所有API规范文件
         
         Returns:
-            tuple[int, int]: (尝试删除的文件数, 成功删除的文件数)
+            Tuple[int, int]: (尝试删除的文件数, 成功删除的文件数)
         """
         # 确保目录存在
         self._ensure_upload_dir_exists()
