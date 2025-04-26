@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
-from typing import List
+from typing import List, Dict, Any
+import os
+from datetime import datetime
 
 from app.models.schema import SearchRequest, SearchResponse, UploadAPISpecRequest, APIEndpoint, APIEndpointWithSource
 from app.services.vector_store import VectorStore
@@ -154,4 +156,49 @@ async def clean_collection(
 @router.get("/health")
 async def health_check():
     """健康检查"""
-    return {"status": "healthy"} 
+    return {"status": "healthy"}
+
+@router.get("/files")
+async def list_files(
+    file_storage: FileStorage = Depends(get_file_storage)
+):
+    """列出上传目录中的所有API规范文件"""
+    try:
+        # 获取所有文件
+        files = file_storage.list_files()
+        
+        # 准备文件信息
+        file_infos = []
+        for file_path in files:
+            file_name = os.path.basename(file_path)
+            file_stats = os.stat(file_path)
+            file_size = file_stats.st_size
+            modified_time = datetime.fromtimestamp(file_stats.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            
+            # 尝试确定文件类型
+            file_type = "unknown"
+            if file_name.lower().endswith('.json'):
+                file_type = "JSON"
+            elif file_name.lower().endswith('.yaml') or file_name.lower().endswith('.yml'):
+                file_type = "YAML"
+            
+            file_infos.append({
+                "file_name": file_name,
+                "file_path": file_path,
+                "file_size": file_size,
+                "file_size_human": f"{file_size / 1024:.2f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.2f} MB",
+                "modified_time": modified_time,
+                "file_type": file_type
+            })
+        
+        # 按修改时间排序（最新的在前面）
+        file_infos.sort(key=lambda x: x["modified_time"], reverse=True)
+        
+        return {
+            "files": file_infos,
+            "total_count": len(file_infos),
+            "total_size": sum(info["file_size"] for info in file_infos),
+            "total_size_human": f"{sum(info['file_size'] for info in file_infos) / 1024:.2f} KB" if sum(info["file_size"] for info in file_infos) < 1024 * 1024 else f"{sum(info['file_size'] for info in file_infos) / (1024 * 1024):.2f} MB"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}") 

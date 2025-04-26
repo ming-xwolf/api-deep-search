@@ -172,6 +172,48 @@ POST /api/clean-collection
 
 响应消息中会显示成功清空的集合名称，以及成功删除的文件数量。
 
+#### 获取文件列表
+
+```http
+GET /api/files
+```
+
+此API将返回`upload`目录下所有的API规范文件及其详细信息。
+
+响应示例:
+
+```json
+{
+  "files": [
+    {
+      "file_name": "用户管理API_v1.0.0_20240516123045_a1b2c3d4.json",
+      "file_path": "upload/用户管理API_v1.0.0_20240516123045_a1b2c3d4.json",
+      "file_size": 24680,
+      "file_size_human": "24.10 KB",
+      "modified_time": "2024-05-16 12:30:45",
+      "file_type": "JSON"
+    },
+    {
+      "file_name": "产品API_v2.0.0_20240515183012_e5f6g7h8.yaml",
+      "file_path": "upload/产品API_v2.0.0_20240515183012_e5f6g7h8.yaml",
+      "file_size": 18540,
+      "file_size_human": "18.11 KB",
+      "modified_time": "2024-05-15 18:30:12",
+      "file_type": "YAML"
+    }
+  ],
+  "total_count": 2,
+  "total_size": 43220,
+  "total_size_human": "42.21 KB"
+}
+```
+
+响应内容包括:
+- 文件列表（按修改时间降序排列，最新的在前）
+- 每个文件的名称、路径、大小（字节数和人类可读格式）、修改时间和文件类型
+- 总文件数量
+- 总文件大小（字节数和人类可读格式）
+
 ## 高级配置
 
 在`app/config/settings.py`中可以配置:

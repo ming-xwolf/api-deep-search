@@ -65,6 +65,7 @@ python app.py
 3. 主要功能:
    - 上传API规范: `/api/upload` 接口
    - 搜索API接口: `/api/search` 接口
+   - 列出文件: `/api/files` 接口
    - 清理所有数据: `/api/clean-collection` 接口
 
 详细使用方法请参考 [USAGE.md](USAGE.md) 
