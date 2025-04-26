@@ -8,4 +8,6 @@ sentence-transformers>=2.2.2
 deepseek-ai==0.0.1
 openai>=1.1.0
 typing-extensions>=4.5.0
-pyyaml>=6.0 
+pyyaml>=6.0
+python-multipart>=0.0.5
+aiofiles>=0.8.0 

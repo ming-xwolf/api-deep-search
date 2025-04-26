@@ -73,3 +73,45 @@ python app.py
    - 删除单个文件: `/api/delete` 接口
 
 详细使用方法请参考 [USAGE.md](USAGE.md) 
+
+## Docker部署
+
+### 使用Docker镜像构建和运行
+
+1. 构建Docker镜像:
+
+```bash
+# Linux/Mac
+./build.sh
+
+# Windows
+build.bat
+```
+
+2. 运行Docker容器:
+
+```bash
+docker run -p 8000:8000 --env-file .env api-deep-search:latest
+```
+
+### 使用Docker Compose部署
+
+1. 启动所有服务:
+
+```bash
+docker-compose up -d
+```
+
+2. 查看日志:
+
+```bash
+docker-compose logs -f
+```
+
+3. 停止服务:
+
+```bash
+docker-compose down
+```
+
+Docker环境会自动配置应用和Qdrant向量数据库，并保留上传的文件和向量数据。 
