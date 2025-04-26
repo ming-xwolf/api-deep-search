@@ -136,3 +136,24 @@ class QdrantVectorService:
         except Exception as e:
             print(f"删除点时出错: {str(e)}")
             return False 
+    
+    def create_oas_version_filter(self, openapi_version):
+        return models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="openapi_version",
+                        match=models.MatchValue(value=openapi_version)
+                    )
+                ]
+            )
+
+    def create_file_filter(self, file_path):
+        return models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="file_path",
+                        match=models.MatchValue(value=file_path)
+                    )
+                ]
+            )
+    

@@ -2,8 +2,6 @@ from typing import List, Dict, Any, Optional
 import json
 import uuid
 
-from qdrant_client.http import models
-
 from app.models.schema import APIEndpoint, APISpec
 from app.services.embedding_service import EmbeddingService
 from app.services.vector_service import QdrantVectorService
@@ -202,14 +200,7 @@ class VectorStore:
                 return 0
             
             # 获取所有匹配该文件路径的点
-            file_filter = models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="file_path",
-                        match=models.MatchValue(value=file_path)
-                    )
-                ]
-            )
+            file_filter = self.vector_service.create_file_filter(file_path)
             
             scroll_result = self.vector_service.scroll(
                 limit=points_count,
@@ -232,7 +223,8 @@ class VectorStore:
         except Exception as e:
             print(f"删除嵌入数据时出错: {str(e)}")
             return 0
-    
+
+
     def get_openapi_versions(self) -> List[str]:
         """获取所有存储的OpenAPI规范版本
         
@@ -272,14 +264,7 @@ class VectorStore:
         # 准备筛选条件
         search_filter = None
         if openapi_version:
-            search_filter = models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="openapi_version",
-                        match=models.MatchValue(value=openapi_version)
-                    )
-                ]
-            )
+            search_filter = self.vector_service.create_oas_version_filter(openapi_version)
         
         # 执行搜索
         search_results = self.vector_service.search(
