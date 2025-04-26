@@ -503,7 +503,7 @@ async def get_embedding_info(
         return {
             "provider": embedding_service.embedding_provider,
             "dimension": embedding_service.get_embedding_dimension(),
-            "model": getattr(embedding_service, "embedding_model_name", None) or settings.embedding_model
+            "model": getattr(embedding_service, "embedding_model_name", None)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取嵌入服务信息时出错: {str(e)}")
@@ -528,7 +528,7 @@ async def get_vector_service_info(
             "collection_name": vector_service.collection_name,
             "collection_exists": collection_exists,
             "points_count": points_count,
-            "url": settings.qdrant_url
+            "url": vector_service.url
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取向量服务信息时出错: {str(e)}") 

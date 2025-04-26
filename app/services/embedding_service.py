@@ -14,7 +14,8 @@ class EmbeddingService:
         
         if self.embedding_provider == "local":
             # 使用本地Sentence Transformers模型
-            self.embedding_model = SentenceTransformer(settings.embedding_model)
+            self.embedding_model = SentenceTransformer(settings.local_embedding_model)
+            self.embedding_model_name = settings.local_embedding_model
             self.embedding_dimension = settings.embedding_dimension
         elif self.embedding_provider == "openai":
             # 使用OpenAI API

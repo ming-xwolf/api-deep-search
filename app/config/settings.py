@@ -19,12 +19,12 @@ class Settings(BaseModel):
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     
     # 向量数据库配置
-    qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:16333")
+    qdrant_url: str = os.getenv("QDRANT_URL", "http://192.168.2.51:16333")
     qdrant_collection_name: str = "api_specs"
     
     # 嵌入配置
     embedding_provider: Literal["local", "openai", "siliconflow"] = os.getenv("EMBEDDING_PROVIDER", "local")
-    embedding_model: str = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-zh-v1.5")  # 本地模型默认使用BGE中文大模型
+    local_embedding_model: str = os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-large-zh-v1.5")  # 本地模型默认使用BGE中文大模型
     siliconflow_embedding_model: str = os.getenv("SILICONFLOW_EMBEDDING_MODEL", "embe-medium")  # siliconflow默认嵌入模型
     openai_embedding_model: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")  # OpenAI默认嵌入模型
     embedding_dimension: int = 1024  # 确保这与所选模型维度一致

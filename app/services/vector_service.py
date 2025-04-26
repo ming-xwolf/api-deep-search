@@ -11,6 +11,7 @@ class QdrantVectorService:
     
     def __init__(self):
         """初始化Qdrant客户端"""
+        self.url = settings.qdrant_url
         self.client = QdrantClient(url=settings.qdrant_url)
         self.collection_name = settings.qdrant_collection_name
     
