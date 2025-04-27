@@ -20,7 +20,7 @@ class EmbeddingService:
         """获取嵌入向量的维度"""
         return self.provider.get_embedding_dimension()
     
-    def get_embedding(self, text: str) -> List[float]:
+    def get_embedding_value(self, text: str) -> List[float]:
         """获取文本嵌入向量
         
         Args:
@@ -29,7 +29,7 @@ class EmbeddingService:
         Returns:
             文本的嵌入向量
         """
-        return self.provider.get_embedding(text)
+        return self.provider.get_embedding_value(text)
     
     def get_info(self) -> Dict[str, str]:
         """获取嵌入服务信息"""

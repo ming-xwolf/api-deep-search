@@ -93,7 +93,7 @@ class EmbeddingProvider(ABC):
     """嵌入模型提供者抽象基类"""
     
     @abstractmethod
-    def get_embedding(self, text: str) -> List[float]:
+    def get_embedding_value(self, text: str) -> List[float]:
         """获取文本嵌入向量"""
         pass
     

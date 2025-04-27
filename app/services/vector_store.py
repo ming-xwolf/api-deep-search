@@ -70,7 +70,7 @@ class VectorStore:
         for endpoint in api_spec.endpoints:
             # 准备文本并获取嵌入
             text = self._prepare_endpoint_text(endpoint)
-            embedding = self.embedding_service.get_embedding(text)
+            embedding = self.embedding_service.get_embedding_value(text)
             
             # 准备元数据
             payload = {
@@ -101,7 +101,7 @@ class VectorStore:
     
     def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """搜索最相关的API端点"""
-        query_embedding = self.embedding_service.get_embedding(query)
+        query_embedding = self.embedding_service.get_embedding_value(query)
         
         search_results = self.vector_service.search(
             query_vector=query_embedding,
@@ -256,7 +256,7 @@ class VectorStore:
         Returns:
             搜索结果列表
         """
-        query_embedding = self.embedding_service.get_embedding(query)
+        query_embedding = self.embedding_service.get_embedding_value(query)
         
         # 准备筛选条件
         search_filter = None

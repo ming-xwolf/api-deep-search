@@ -66,7 +66,7 @@ class SiliconFlowEmbeddingProvider(EmbeddingProvider):
         # SiliconFlow的embe-medium维度为1024
         self.embedding_dimension = 1024
     
-    def get_embedding(self, text: str) -> List[float]:
+    def get_embedding_value(self, text: str) -> List[float]:
         """获取文本嵌入向量"""
         return self.embeddings.embed_query(text)
     

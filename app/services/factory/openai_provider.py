@@ -66,7 +66,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         # OpenAI text-embedding-3-small维度为1536
         self.embedding_dimension = 1536 if model_name.startswith("text-embedding-3") else 1536
     
-    def get_embedding(self, text: str) -> List[float]:
+    def get_embedding_value(self, text: str) -> List[float]:
         """获取文本嵌入向量"""
         return self.embeddings.embed_query(text)
     

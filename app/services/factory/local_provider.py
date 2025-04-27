@@ -21,7 +21,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
             # 回退到直接使用SentenceTransformer
             self.model = SentenceTransformer(model_name)
     
-    def get_embedding(self, text: str) -> List[float]:
+    def get_embedding_value(self, text: str) -> List[float]:
         """获取文本嵌入向量"""
         try:
             # 尝试使用Langchain的嵌入模型
