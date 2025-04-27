@@ -92,15 +92,12 @@ class VectorStore:
             # 创建点
             point_id = str(uuid.uuid4())
             points.append(
-                models.PointStruct(
-                    id=point_id,
-                    vector=embedding,
-                    payload=payload
-                )
+                self.vector_service.create_point(embedding, payload, point_id)
             )
         
         # 批量插入点
         self.vector_service.upsert_points(points)
+
     
     def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """搜索最相关的API端点"""

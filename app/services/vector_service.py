@@ -156,4 +156,9 @@ class QdrantVectorService:
                     )
                 ]
             )
-    
+    def create_point(self, embedding, payload, point_id):
+        return models.PointStruct(
+                    id=point_id,
+                    vector=embedding,
+                    payload=payload
+                )
