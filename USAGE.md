@@ -39,7 +39,7 @@ conda activate api-deep-search
    
    # 嵌入配置
    EMBEDDING_PROVIDER=local  # 可选值: local, openai, siliconflow
-   EMBEDDING_MODEL=BAAI/bge-large-zh-v1.5  # 本地嵌入模型
+   LOCAL_EMBEDDING_MODEL=BAAI/bge-large-zh-v1.5  # 本地嵌入模型
    SILICONFLOW_EMBEDDING_MODEL=embe-medium  # SiliconFlow嵌入模型
    OPENAI_EMBEDDING_MODEL=text-embedding-3-small  # OpenAI嵌入模型
    
@@ -51,7 +51,7 @@ conda activate api-deep-search
    TEMPERATURE=0.3  # 模型温度
    MAX_TOKENS=1000  # 最大token数
    
-   QDRANT_URL=http://localhost:16333  # 如果使用远程Qdrant服务
+   QDRANT_URL=http://localhost:6333  # 如果使用远程Qdrant服务
    DEBUG=False
    ```
 
@@ -169,6 +169,23 @@ Content-Type: application/json
 
 搜索结果中包含了API端点的详细信息，以及源文件的路径、API标题和版本信息，便于追踪和引用。
 
+#### 按OpenAPI版本搜索API
+
+```http
+POST /api/search_by_version
+Content-Type: application/json
+
+{
+  "query": "如何获取用户列表?",
+  "openapi_version": "3.0.0",
+  "top_k": 3
+}
+```
+
+此API允许你按OpenAPI规范版本筛选搜索结果，只返回指定版本的API端点。如果不指定版本，则搜索所有版本。
+
+响应格式与`/api/search`接口相同。
+
 #### 清理集合和文件
 
 ```http
@@ -240,229 +257,243 @@ Content-Type: application/json
 }
 ```
 
-此API将删除指定的API规范文件，同时从向量数据库中删除对应的嵌入数据。
+此API将删除指定的API规范文件，并从向量数据库中移除相关的嵌入数据。
 
 响应示例:
 
 ```json
 {
-  "message": "成功删除文件 用户管理API_v1.0.0_20240516123045_a1b2c3d4.json 及其对应的向量嵌入",
-  "deleted_embeddings_count": 8
+  "message": "成功删除文件 用户管理API_v1.0.0_20240516123045_a1b2c3d4.json 并移除了 8 个嵌入数据"
 }
 ```
 
-响应内容包括:
-- 删除成功的消息
-- 从向量数据库中删除的嵌入数据数量
+响应消息中会显示成功删除的文件名，以及从向量数据库中删除的数据点数量。
 
-#### 获取嵌入服务信息
+#### 获取OpenAPI版本列表
+
+```http
+GET /api/openapi_versions
+```
+
+此API将返回向量数据库中存储的所有OpenAPI规范版本。
+
+响应示例:
+
+```json
+{
+  "versions": [
+    "2.0",
+    "3.0.0",
+    "3.1.0"
+  ]
+}
+```
+
+#### 获取服务信息
+
+系统提供了几个API端点来查询当前服务的配置和状态信息：
+
+1. 获取嵌入服务信息：
 
 ```http
 GET /api/embedding_info
 ```
 
-此API返回当前系统使用的嵌入服务相关信息。
-
-响应示例：
-
-```json
-{
-  "provider": "local",
-  "dimension": 1024,
-  "model": "BAAI/bge-large-zh-v1.5"
-}
-```
-
-或者使用其他提供商时：
+响应示例:
 
 ```json
 {
   "provider": "openai",
-  "dimension": 1536,
-  "model": "text-embedding-3-small"
+  "model": "text-embedding-3-small",
+  "dimension": "1536"
 }
 ```
 
-通过此API可以了解当前系统使用的嵌入模型信息，包括提供商、向量维度和模型名称。
-
-#### 获取向量服务信息
+2. 获取向量服务信息：
 
 ```http
 GET /api/vector_service_info
 ```
 
-此API返回当前系统使用的向量数据库服务相关信息。
-
-响应示例：
+响应示例:
 
 ```json
 {
   "service_type": "qdrant",
   "collection_name": "api_specs",
   "collection_exists": true,
-  "points_count": 235,
+  "points_count": 143,
   "url": "http://localhost:6333"
 }
 ```
 
-通过此API可以了解当前系统使用的向量数据库信息，包括服务类型、集合名称、集合是否存在、向量数量和服务URL。
-
-### OpenAPI多版本支持
-
-本系统现已支持多种OpenAPI规范版本，包括OpenAPI 3.x和Swagger 2.x。系统会自动检测和处理不同版本的规范差异。
-
-#### 获取支持的OpenAPI版本
+3. 获取LLM服务信息：
 
 ```http
-GET /api/openapi_versions
+GET /api/llm_info
 ```
 
-响应示例：
+响应示例:
 
 ```json
 {
-  "versions": ["2.0", "3.0.0", "3.0.1", "3.1.0"],
-  "count": 4
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "temperature": "0.3",
+  "max_tokens": "1000"
 }
 ```
 
-#### 按OpenAPI版本搜索API
-
-```http
-POST /api/search_by_version?openapi_version=3.0.0&query=如何获取用户列表&top_k=3
-```
-
-通过指定`openapi_version`参数，可以只搜索特定OpenAPI版本的API端点。
-
-响应与普通搜索相同，但结果会被限制在指定版本的API规范中。
-
-#### 按OpenAPI版本筛选文件列表
+#### 按版本列出文件
 
 ```http
 GET /api/files_by_version?openapi_version=3.0.0
 ```
 
-通过指定`openapi_version`参数，可以只列出特定OpenAPI版本的API规范文件。
+此API将返回指定OpenAPI版本的API规范文件。如果不指定版本，则返回所有文件。
 
-响应示例：
+响应格式与`/api/files`接口相同，但只包含指定版本的文件。
 
-```json
-{
-  "files": [
-    {
-      "file_name": "用户管理API_v1.0.0_20240516123045_a1b2c3d4.json",
-      "file_path": "upload/用户管理API_v1.0.0_20240516123045_a1b2c3d4.json",
-      "file_size": 24680,
-      "file_size_human": "24.10 KB",
-      "modified_time": "2024-05-16 12:30:45",
-      "file_type": "JSON",
-      "api_title": "用户管理API",
-      "api_version": "1.0.0",
-      "openapi_version": "3.0.0"
-    }
-  ],
-  "total_count": 1,
-  "filtered_version": "3.0.0",
-  "total_size": 24680,
-  "total_size_human": "24.10 KB"
+### 5. 示例代码
+
+项目提供了几个示例Python脚本，位于`examples`目录：
+
+1. `load_spec.py`: 演示如何加载API规范到向量数据库
+2. `search_api.py`: 演示如何搜索API并获取回答
+3. `clean_collection.py`: 演示如何清理向量数据库和文件
+
+例如，要搜索API：
+
+```python
+import requests
+
+# 定义搜索查询
+search_query = {
+    "query": "如何获取用户列表?",
+    "top_k": 3
 }
+
+# 发送请求
+response = requests.post("http://localhost:8000/api/search", json=search_query)
+results = response.json()
+
+# 打印结果
+print(f"回答: {results['answer']}")
+print("\n相关API端点:")
+for endpoint in results['results']:
+    print(f"- {endpoint['method']} {endpoint['path']}: {endpoint['summary']}")
+```
+
+## Docker部署
+
+### 使用Docker Compose（推荐）
+
+项目提供了`docker-compose.yml`文件，可以一键部署API服务和Qdrant向量数据库：
+
+```bash
+docker-compose up -d
+```
+
+这将启动两个容器：
+- `app`: API服务，暴露8000端口
+- `qdrant`: Qdrant向量数据库，暴露6333和6334端口
+
+所有数据将持久化存储在Docker卷中，可以通过以下命令查看：
+
+```bash
+docker volume ls
+```
+
+### 单独使用Docker
+
+如果需要单独运行API服务，可以使用以下命令：
+
+```bash
+# 构建镜像
+docker build -t api-deep-search .
+
+# 运行容器
+docker run -p 8000:8000 --env-file .env -v ./upload:/app/upload api-deep-search
 ```
 
 ## 高级配置
 
-在`app/config/settings.py`中可以配置:
+### 嵌入模型配置
 
-1. 嵌入模型: 
-   - 提供商: 支持本地模型(`local`)、OpenAI(`openai`)和SiliconFlow(`siliconflow`)
-   - 本地模型: 默认使用`BAAI/bge-large-zh-v1.5`
-   - OpenAI模型: 默认使用`text-embedding-3-small`(1536维)
-   - SiliconFlow模型: 默认使用`embe-medium`(1024维)
+系统支持三种嵌入模型提供商：
 
-2. 大模型配置: 
-   - 提供商: 支持DeepSeek(`deepseek`)、OpenAI(`openai`)和SiliconFlow(`siliconflow`)
-   - DeepSeek模型: 默认使用`deepseek-chat`
-   - OpenAI模型: 默认使用`gpt-3.5-turbo`
-   - SiliconFlow模型: 默认使用`sf-llama3-70b-chat`
-   - 模型温度: 默认为0.3
-   - 最大token数: 默认为1000
+1. 本地模型（默认）：使用HuggingFace模型，如`BAAI/bge-large-zh-v1.5`
+2. OpenAI：使用OpenAI的嵌入模型，如`text-embedding-3-small`
+3. SiliconFlow：使用SiliconFlow的嵌入模型，如`embe-medium`
 
-3. 向量数据库设置: 集合名称、维度等
+通过`.env`文件中的`EMBEDDING_PROVIDER`配置项选择提供商。
 
-4. 分块设置: 文本分块大小和重叠等
+### LLM模型配置
 
-## 模块化服务架构
+系统支持三种LLM提供商：
 
-本项目采用模块化的服务架构，将不同功能分离到独立的服务类中：
+1. DeepSeek（默认）：如`deepseek-chat`
+2. OpenAI：如`gpt-3.5-turbo`或`gpt-4-turbo`
+3. SiliconFlow：如`sf-llama3-70b-chat`
 
-### 1. 嵌入服务 (EmbeddingService)
+通过`.env`文件中的`LLM_PROVIDER`配置项选择提供商。
 
-`app/services/embedding_service.py` 实现了多种嵌入模型的支持：
-- 本地模型 (使用SentenceTransformers)
-- OpenAI API
-- SiliconFlow API
+### 向量数据库配置
 
-每种嵌入提供商都有统一的接口，可以轻松切换或扩展新的提供商。
+系统默认使用Qdrant作为向量数据库。可以通过`.env`文件中的`QDRANT_URL`配置连接地址，默认为`http://localhost:6333`。
 
-### 2. 向量数据库服务 (QdrantVectorService)
+## 故障排除
 
-`app/services/vector_service.py` 实现了Qdrant向量数据库的操作：
-- 集合管理 (创建、删除)
-- 点操作 (增删改查)
-- 向量搜索
+### 常见问题
 
-### 3. 向量存储服务 (VectorStore)
+1. **连接Qdrant失败**
 
-`app/services/vector_store.py` 使用上述两个底层服务，提供更高级的业务逻辑：
-- API规范的存储和检索
-- 按版本搜索
-- 文件路径管理
+   ```
+   Failed to connect to Qdrant at http://localhost:6333
+   ```
 
-### 4. 文件存储服务 (FileStorage)
+   解决方案：确保Qdrant容器正在运行，并且URL配置正确。使用以下命令检查：
 
-`app/services/file_storage.py` 负责处理文件系统操作：
-- 保存上传的API规范文件
-- 生成文件名
-- 删除文件
+   ```bash
+   docker ps | grep qdrant
+   ```
 
-### 5. LLM服务 (LLMService)
+2. **嵌入模型加载失败**
 
-`app/services/llm_service.py` 处理与大模型的交互：
-- 生成API搜索结果的回答
-- 支持多种LLM提供商
+   ```
+   Failed to load embedding model
+   ```
 
-这种模块化的服务架构使系统更容易维护和扩展。例如，可以轻松添加新的嵌入模型提供商，或者替换向量数据库为其他实现，同时保持API接口不变。
+   解决方案：确保已安装正确的依赖，如果使用本地模型，确保模型可以下载：
 
-## 使用不同的嵌入模型
+   ```bash
+   pip install sentence-transformers
+   ```
 
-本项目支持三种不同的嵌入模型提供商:
+3. **API密钥无效**
 
-### 1. 本地模型 (默认)
+   ```
+   Invalid API key for provider
+   ```
 
-设置`EMBEDDING_PROVIDER=local`，使用SentenceTransformers库加载本地模型。适合无网络环境或追求低延迟的场景。
+   解决方案：检查`.env`文件中的API密钥配置是否正确，并确保选择的提供商对应的API密钥已设置。
 
-### 2. OpenAI嵌入
+### 日志
 
-设置`EMBEDDING_PROVIDER=openai`，使用OpenAI的文本嵌入API。需要有效的OpenAI API密钥。
+系统日志位于项目根目录下的`app.log`文件中，可以通过以下命令查看：
 
-### 3. SiliconFlow嵌入
+```bash
+tail -f app.log
+```
 
-设置`EMBEDDING_PROVIDER=siliconflow`，使用SiliconFlow的文本嵌入API。需要有效的SiliconFlow API密钥。
-SiliconFlow提供了高性能且价格合理的嵌入模型，支持OpenAI兼容的API格式。
+Docker环境中的日志可以通过以下命令查看：
 
-## 使用不同的LLM模型
+```bash
+docker-compose logs -f
+```
 
-本项目支持三种不同的LLM提供商:
+或者
 
-### 1. DeepSeek (默认)
-
-设置`LLM_PROVIDER=deepseek`，使用DeepSeek的模型。默认使用`deepseek-chat`模型。
-
-### 2. OpenAI
-
-设置`LLM_PROVIDER=openai`，使用OpenAI的模型。默认使用`gpt-3.5-turbo`模型。
-
-### 3. SiliconFlow
-
-设置`LLM_PROVIDER=siliconflow`，使用SiliconFlow的模型。默认使用`sf-llama3-70b-chat`模型。
-
-SiliconFlow提供了基于Llama 3等开源模型的高性能实现，同时支持OpenAI兼容的API格式，具有性价比优势。 
+```bash
+docker logs api-deep-search
+``` 
