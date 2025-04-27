@@ -498,15 +498,8 @@ async def list_files_by_version(
 async def get_embedding_info(
     embedding_service: EmbeddingService = Depends(get_embedding_service)
 ):
-    """获取嵌入服务信息"""
-    try:
-        return {
-            "provider": embedding_service.embedding_provider,
-            "dimension": embedding_service.get_embedding_dimension(),
-            "model": getattr(embedding_service, "embedding_model_name", None)
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取嵌入服务信息时出错: {str(e)}")
+    """获取嵌入信息"""
+    return embedding_service.get_info()
 
 @router.get("/vector_service_info")
 async def get_vector_service_info(
@@ -537,11 +530,5 @@ async def get_vector_service_info(
 async def get_llm_info(
     llm_service: LLMService = Depends(get_llm_service)
 ):
-    """获取当前使用的LLM信息"""
-    return {
-        "provider": llm_service.llm_provider,
-        "model": llm_service.model,
-        "temperature": llm_service.temperature,
-        "max_tokens": llm_service.max_tokens,
-        "base_url": llm_service.client.base_url
-    } 
+    """获取LLM信息"""
+    return llm_service.get_info() 
