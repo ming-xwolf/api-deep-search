@@ -14,7 +14,8 @@ class LLMService:
         self.model = settings.llm_model
         self.temperature = settings.temperature
         self.max_tokens = settings.max_tokens
-    
+        self.llm_provider = settings.llm_provider
+        
     def _init_llm_client(self):
         """初始化LLM客户端"""
         if settings.llm_provider == "deepseek":

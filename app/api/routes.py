@@ -531,4 +531,17 @@ async def get_vector_service_info(
             "url": vector_service.url
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取向量服务信息时出错: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"获取向量服务信息时出错: {str(e)}")
+
+@router.get("/llm_info")
+async def get_llm_info(
+    llm_service: LLMService = Depends(get_llm_service)
+):
+    """获取当前使用的LLM信息"""
+    return {
+        "provider": llm_service.llm_provider,
+        "model": llm_service.model,
+        "temperature": llm_service.temperature,
+        "max_tokens": llm_service.max_tokens,
+        "base_url": llm_service.client.base_url
+    } 
