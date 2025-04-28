@@ -12,6 +12,7 @@ from app.utils.openapi_parser import OpenAPIParser
 from app.services.embedding_service import EmbeddingService
 from app.config import settings
 from app.services.qdrant_service import QdrantVectorService
+from app.services.langchain_rag_service import LangchainRAGService
 
 router = APIRouter(prefix="/api", tags=["API"])
 
@@ -31,43 +32,41 @@ def get_embedding_service():
 def get_vector_service():
     return QdrantVectorService()
 
+def get_rag_service():
+    return LangchainRAGService()
+
 @router.post("/search", response_model=SearchResponse)
 async def search_api(
     request: SearchRequest,
-    vector_store: VectorStore = Depends(get_vector_store),
-    llm_service: LLMService = Depends(get_llm_service)
+    rag_service: LangchainRAGService = Depends(get_rag_service)
 ):
     """搜索API"""
-    # 使用向量存储搜索相关端点
-    search_results = vector_store.search(request.query, request.top_k)
+    result = rag_service.search(request.query)
     
     # 如果没有结果，返回空
-    if not search_results:
+    if not result["sources"]:
         return SearchResponse(results=[], answer="抱歉，我没有找到相关的API信息。")
-    
-    # 使用LLM生成回答
-    answer = llm_service.generate_answer(request.query, search_results)
     
     # 提取端点结果
     endpoints = []
-    for result in search_results:
-        if result.get("endpoint"):
+    for source in result["sources"]:
+        if source.get("endpoint"):
             # 创建带有源信息的端点对象
             endpoint = APIEndpointWithSource(
-                **result["endpoint"].dict(),
-                file_path=result.get("file_path"),
-                api_title=result.get("api_title"),
-                api_version=result.get("api_version"),
-                openapi_version=result.get("openapi_version")
+                **source["endpoint"],
+                file_path=source.get("file_path"),
+                api_title=source.get("api_title"),
+                api_version=source.get("api_version"),
+                openapi_version=source.get("openapi_version")
             )
             endpoints.append(endpoint)
     
-    return SearchResponse(results=endpoints, answer=answer)
+    return SearchResponse(results=endpoints, answer=result["answer"])
 
 @router.post("/upload")
 async def upload_api_spec(
     request: UploadAPISpecRequest,
-    vector_store: VectorStore = Depends(get_vector_store),
+    rag_service: LangchainRAGService = Depends(get_rag_service),
     file_storage: FileStorage = Depends(get_file_storage)
 ):
     """通过URL或内容上传API规范
@@ -135,7 +134,7 @@ async def upload_api_spec(
         api_spec = OpenAPIParser.parse_openapi_spec(spec_data)
         
         # 存储到向量数据库
-        vector_store.store_api_spec(api_spec, file_path=file_path)
+        rag_service.store_api_spec(api_spec, file_path=file_path)
         
         return {
             "message": f"成功上传 {api_spec.title} v{api_spec.version}，包含 {len(api_spec.endpoints)} 个端点",
@@ -152,7 +151,7 @@ async def upload_api_spec(
 @router.post("/upload_file")
 async def upload_file_api_spec(
     file: UploadFile = File(...),
-    vector_store: VectorStore = Depends(get_vector_store),
+    rag_service: LangchainRAGService = Depends(get_rag_service),
     file_storage: FileStorage = Depends(get_file_storage)
 ):
     """通过本地文件上传API规范"""
@@ -199,7 +198,7 @@ async def upload_file_api_spec(
         api_spec = OpenAPIParser.parse_openapi_spec(spec_data)
         
         # 存储到向量数据库
-        vector_store.store_api_spec(api_spec, file_path=file_path)
+        rag_service.store_api_spec(api_spec, file_path=file_path)
         
         return {
             "message": f"成功上传 {api_spec.title} v{api_spec.version}，包含 {len(api_spec.endpoints)} 个端点",
@@ -211,46 +210,25 @@ async def upload_file_api_spec(
         }
     
     except Exception as e:
-        # 清理任何可能残留的临时文件
-        if 'temp_file_path' in locals() and temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-            except:
-                pass
-                
         raise HTTPException(status_code=500, detail=f"处理API规范时出错: {str(e)}")
 
 @router.post("/clean")
 async def clean_collection(
-    vector_store: VectorStore = Depends(get_vector_store),
+    rag_service: LangchainRAGService = Depends(get_rag_service),
     file_storage: FileStorage = Depends(get_file_storage)
 ):
     """清空向量数据库集合和磁盘上的API规范文件"""
     try:
-        # 获取所有文件路径
-        file_paths = vector_store.get_all_file_paths()
-        file_count = len(file_paths)
-        
         # 清空向量数据库集合
-        success = vector_store.clean_collection()
+        success = rag_service.clean_collection()
         if not success:
             raise HTTPException(status_code=500, detail="清空集合失败")
         
-        # 删除所有文件
-        deleted_count = 0
-        for file_path in file_paths:
-            if file_storage.delete_file(file_path):
-                deleted_count += 1
-        
-        # 如果没有获取到具体文件路径，尝试清空整个上传目录
-        if file_count == 0:
-            total_files, deleted_files = file_storage.clean_upload_directory()
-            return {
-                "message": f"成功清空 {vector_store.collection_name} 集合，并删除了 {deleted_files}/{total_files} 个磁盘文件"
-            }
+        # 清空上传目录
+        total_files, deleted_files = file_storage.clean_upload_directory()
         
         return {
-            "message": f"成功清空 {vector_store.collection_name} 集合，并删除了 {deleted_count}/{file_count} 个磁盘文件"
+            "message": f"成功清空向量数据库集合，并删除了 {deleted_files}/{total_files} 个磁盘文件"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"清空集合时发生错误: {str(e)}")
