@@ -161,4 +161,4 @@ class QdrantVectorService:
                     id=point_id,
                     vector=embedding,
                     payload=payload
-                )
+                ) 

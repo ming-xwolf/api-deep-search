@@ -11,7 +11,7 @@ from app.services.file_storage import FileStorage
 from app.utils.openapi_parser import OpenAPIParser
 from app.services.embedding_service import EmbeddingService
 from app.config import settings
-from app.services.vector_service import QdrantVectorService
+from app.services.qdrant_service import QdrantVectorService
 
 router = APIRouter(prefix="/api", tags=["API"])
 

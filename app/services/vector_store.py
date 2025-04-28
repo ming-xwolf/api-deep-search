@@ -4,7 +4,7 @@ import uuid
 
 from app.models.schema import APIEndpoint, APISpec
 from app.services.embedding_service import EmbeddingService
-from app.services.vector_service import QdrantVectorService
+from app.services.qdrant_service import QdrantVectorService
 
 class VectorStore:
     """向量数据库存储服务"""
