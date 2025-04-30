@@ -6,13 +6,13 @@ import tempfile
 
 from app.models.schema import SearchRequest, SearchResponse, UploadAPISpecRequest, APIEndpoint, APIEndpointWithSource
 from app.services.vector_store import VectorStore
-from app.services.llm_service import LLMService
+from app.services.llm_factory import LLMFactory
+from app.services.embedding_factory import EmbeddingFactory
 from app.services.file_storage import FileStorage
 from app.utils.openapi_parser import OpenAPIParser
-from app.services.embedding_service import EmbeddingService
-from app.config import settings
 from app.services.qdrant_service import QdrantVectorService
 from app.services.langchain_rag_service import LangchainRAGService
+from app.services.llm_service import LLMService
 
 router = APIRouter(prefix="/api", tags=["API"])
 
@@ -20,20 +20,25 @@ router = APIRouter(prefix="/api", tags=["API"])
 def get_vector_store():
     return VectorStore()
 
-def get_llm_service():
-    return LLMService()
-
 def get_file_storage():
     return FileStorage()
-
-def get_embedding_service():
-    return EmbeddingService()
 
 def get_vector_service():
     return QdrantVectorService()
 
 def get_rag_service():
     return LangchainRAGService()
+
+def get_llm_service():
+    return LLMService()
+
+@router.get("/info")
+def get_info() -> Dict[str, Any]:
+    """获取系统配置信息"""
+    return {
+        "llm": LLMFactory.get_info(),
+        "embedding": EmbeddingFactory.get_info()
+    }
 
 @router.post("/search", response_model=SearchResponse)
 async def search_api(
@@ -472,13 +477,6 @@ async def list_files_by_version(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}")
 
-@router.get("/embedding_info")
-async def get_embedding_info(
-    embedding_service: EmbeddingService = Depends(get_embedding_service)
-):
-    """获取嵌入信息"""
-    return embedding_service.get_info()
-
 @router.get("/vector_service_info")
 async def get_vector_service_info(
     vector_service: QdrantVectorService = Depends(get_vector_service)
@@ -502,11 +500,4 @@ async def get_vector_service_info(
             "url": vector_service.url
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取向量服务信息时出错: {str(e)}")
-
-@router.get("/llm_info")
-async def get_llm_info(
-    llm_service: LLMService = Depends(get_llm_service)
-):
-    """获取LLM信息"""
-    return llm_service.get_info() 
+        raise HTTPException(status_code=500, detail=f"获取向量服务信息时出错: {str(e)}") 

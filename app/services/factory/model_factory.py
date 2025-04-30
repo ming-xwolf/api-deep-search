@@ -4,12 +4,14 @@ from typing import Dict, Optional, Type, Any
 from app.services.factory.base import ModelFactory, BaseLLMProvider, EmbeddingProvider
 from app.services.factory.openai_provider import OpenAIModelFactory
 from app.services.factory.local_provider import LocalModelFactory
+from app.services.factory.deepseek_provider import DeepseekModelFactory
 from app.config.settings import settings
 
 # 工厂注册表
 FACTORY_REGISTRY: Dict[str, Type[ModelFactory]] = {
     "openai": OpenAIModelFactory,
     "local": LocalModelFactory,
+    "deepseek": DeepseekModelFactory,
 }
 
 # 尝试导入其他实现并注册

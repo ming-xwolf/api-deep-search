@@ -32,4 +32,29 @@ class EmbeddingFactory:
                 openai_api_base=settings.siliconflow_base_url
             )
         else:
-            raise ValueError(f"不支持的嵌入模型提供商: {settings.embedding_provider}") 
+            raise ValueError(f"不支持的嵌入模型提供商: {settings.embedding_provider}")
+    
+    @staticmethod
+    def get_info() -> dict:
+        """获取当前嵌入模型配置信息
+        
+        Returns:
+            dict: 包含嵌入模型配置信息的字典
+        """
+        info = {
+            "provider": settings.embedding_provider,
+            "model": None,
+            "base_url": None,
+            "device": "cpu"
+        }
+        
+        if settings.embedding_provider == "openai":
+            info["model"] = settings.openai_embedding_model
+            info["base_url"] = settings.openai_base_url
+        elif settings.embedding_provider == "local":
+            info["model"] = settings.local_embedding_model
+        elif settings.embedding_provider == "siliconflow":
+            info["model"] = settings.siliconflow_embedding_model
+            info["base_url"] = settings.siliconflow_base_url
+            
+        return info 

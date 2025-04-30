@@ -43,4 +43,31 @@ class LLMFactory:
                 openai_api_base=settings.siliconflow_base_url
             )
         else:
-            raise ValueError(f"不支持的 LLM 提供商: {settings.llm_provider}") 
+            raise ValueError(f"不支持的 LLM 提供商: {settings.llm_provider}")
+    
+    @staticmethod
+    def get_info() -> dict:
+        """获取当前 LLM 配置信息
+        
+        Returns:
+            dict: 包含 LLM 配置信息的字典
+        """
+        info = {
+            "provider": settings.llm_provider,
+            "model": None,
+            "temperature": settings.temperature,
+            "max_tokens": settings.max_tokens,
+            "base_url": None
+        }
+        
+        if settings.llm_provider == "openai":
+            info["model"] = settings.openai_model
+            info["base_url"] = settings.openai_base_url
+        elif settings.llm_provider == "deepseek":
+            info["model"] = settings.deepseek_model
+            info["base_url"] = settings.deepseek_base_url
+        elif settings.llm_provider == "siliconflow":
+            info["model"] = settings.siliconflow_model
+            info["base_url"] = settings.siliconflow_base_url
+            
+        return info 
