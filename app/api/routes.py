@@ -5,32 +5,23 @@ from datetime import datetime
 import tempfile
 
 from app.models.schema import SearchRequest, SearchResponse, UploadAPISpecRequest, APIEndpoint, APIEndpointWithSource
-from app.services.vector_store import VectorStore
 from app.services.llm_factory import LLMFactory
 from app.services.embedding_factory import EmbeddingFactory
 from app.services.file_storage import FileStorage
 from app.utils.openapi_parser import OpenAPIParser
-from app.services.qdrant_service import QdrantVectorService
 from app.services.langchain_rag_service import LangchainRAGService
-from app.services.llm_service import LLMService
 
 router = APIRouter(prefix="/api", tags=["API"])
 
 # 依赖注入
-def get_vector_store():
-    return VectorStore()
 
 def get_file_storage():
     return FileStorage()
 
-def get_vector_service():
-    return QdrantVectorService()
 
 def get_rag_service():
     return LangchainRAGService()
 
-def get_llm_service():
-    return LLMService()
 
 @router.get("/info")
 def get_info() -> Dict[str, Any]:
@@ -313,7 +304,7 @@ async def list_files(
 @router.post("/delete")
 async def delete_file(
     file_name: str = Body(..., embed=True),
-    vector_store: VectorStore = Depends(get_vector_store),
+    rag_service: LangchainRAGService = Depends(get_rag_service),
     file_storage: FileStorage = Depends(get_file_storage)
 ):
     """根据文件名删除磁盘上的文件并从向量数据库中删除对应的embedding
@@ -330,7 +321,7 @@ async def delete_file(
             raise HTTPException(status_code=404, detail=f"文件 {file_name} 不存在")
         
         # 从向量数据库中删除嵌入数据
-        deleted_embeddings = vector_store.delete_embeddings_by_file_path(file_path)
+        deleted_embeddings = rag_service.delete_embeddings_by_file_path(file_path)
         
         # 从磁盘中删除文件
         file_deleted = file_storage.delete_file(file_path)
@@ -347,60 +338,50 @@ async def delete_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除文件时出错: {str(e)}")
 
-@router.get("/openapi_versions")
-async def get_openapi_versions(
-    vector_store: VectorStore = Depends(get_vector_store)
-):
-    """获取系统中所有的OpenAPI规范版本"""
-    try:
-        # 获取所有API的OpenAPI版本
-        versions = vector_store.get_openapi_versions()
-        
-        return {
-            "versions": versions,
-            "count": len(versions)
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取OpenAPI版本列表时出错: {str(e)}")
-
-@router.post("/search_by_version")
+@router.post("/search_api_by_version", response_model=SearchResponse)
 async def search_api_by_version(
-    query: str,
-    openapi_version: Optional[str] = None,
-    top_k: int = 5,
-    vector_store: VectorStore = Depends(get_vector_store),
-    llm_service: LLMService = Depends(get_llm_service)
-):
-    """根据OpenAPI版本筛选搜索API"""
+    request: SearchRequest,
+    rag_service: LangchainRAGService = Depends(get_rag_service)
+) -> SearchResponse:
+    """根据 OpenAPI 版本搜索 API
+    
+    Args:
+        request: 搜索请求，包含查询和可选的 OpenAPI 版本
+        rag_service: RAG 服务实例
+        
+    Returns:
+        搜索结果响应
+    """
     try:
-        # 使用向量存储搜索相关端点并按版本筛选
-        search_results = vector_store.search_by_version(query, openapi_version, top_k)
-        
-        # 如果没有结果，返回空
-        if not search_results:
-            return SearchResponse(results=[], answer="抱歉，我没有找到相关的API信息。")
-        
-        # 使用LLM生成回答
-        answer = llm_service.generate_answer(query, search_results)
+        result = rag_service.search_api_by_version(
+            query=request.query,
+            openapi_version=request.openapi_version,
+            top_k=request.top_k
+        )
         
         # 提取端点结果
         endpoints = []
-        for result in search_results:
-            if result.get("endpoint"):
+        for source in result["sources"]:
+            if source.get("endpoint"):
                 # 创建带有源信息的端点对象
                 endpoint = APIEndpointWithSource(
-                    **result["endpoint"].dict(),
-                    file_path=result.get("file_path"),
-                    api_title=result.get("api_title"),
-                    api_version=result.get("api_version"),
-                    openapi_version=result.get("openapi_version")
+                    **source["endpoint"],
+                    file_path=source.get("file_path"),
+                    api_title=source.get("api_title"),
+                    api_version=source.get("api_version"),
+                    openapi_version=source.get("openapi_version")
                 )
                 endpoints.append(endpoint)
         
-        return SearchResponse(results=endpoints, answer=answer)
-    
+        return SearchResponse(
+            results=endpoints,
+            answer=result["answer"]
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"按版本搜索API时出错: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"搜索 API 时出错: {str(e)}"
+        )
 
 @router.get("/files_by_version")
 async def list_files_by_version(
@@ -477,27 +458,3 @@ async def list_files_by_version(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}")
 
-@router.get("/vector_service_info")
-async def get_vector_service_info(
-    vector_service: QdrantVectorService = Depends(get_vector_service)
-):
-    """获取向量数据库服务信息"""
-    try:
-        # 获取集合信息
-        try:
-            collection_info = vector_service.get_collection_info()
-            points_count = collection_info.points_count
-            collection_exists = True
-        except Exception:
-            points_count = 0
-            collection_exists = False
-        
-        return {
-            "service_type": "qdrant",
-            "collection_name": vector_service.collection_name,
-            "collection_exists": collection_exists,
-            "points_count": points_count,
-            "url": vector_service.url
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取向量服务信息时出错: {str(e)}") 

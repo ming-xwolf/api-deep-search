@@ -216,21 +216,17 @@ class LangchainRAGService:
         
         return "".join(prompt_parts)
     
-    def search(self, query: str) -> Dict[str, Any]:
-        """搜索API并生成回答
+    def _process_search_results(self, search_results: List[Any]) -> List[Dict[str, Any]]:
+        """处理搜索结果
         
         Args:
-            query: 搜索查询
+            search_results: 搜索结果列表
             
         Returns:
-            包含搜索结果和生成的回答的字典
+            处理后的源文档列表
         """
-        # 使用 invoke 方法替代 __call__
-        result = self.qa_chain.invoke({"query": query})
-        
-        # 提取源文档
         sources = []
-        for doc in result.get("source_documents", []):
+        for doc in search_results:
             metadata = doc.metadata
             if "endpoint" in metadata:
                 sources.append({
@@ -243,6 +239,23 @@ class LangchainRAGService:
                     "file_path": doc.metadata.get("file_path"),
                     "endpoint": doc.metadata.get("endpoint")
                 })
+        return sources
+
+    def _generate_response(self, query: str, sources: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """生成回答
+        
+        Args:
+            query: 搜索查询
+            sources: 源文档列表
+            
+        Returns:
+            包含回答和源文档的字典
+        """
+        if not sources:
+            return {
+                "answer": "抱歉，我没有找到相关的API信息。",
+                "sources": []
+            }
         
         # 构建系统提示
         system_prompt = "你是一个API专家助手，专门帮助用户理解和使用API。"
@@ -262,6 +275,67 @@ class LangchainRAGService:
             "answer": response.content,
             "sources": sources
         }
+
+    def search(self, query: str) -> Dict[str, Any]:
+        """搜索API并生成回答
+        
+        Args:
+            query: 搜索查询
+            
+        Returns:
+            包含搜索结果和生成的回答的字典
+        """
+        # 使用 invoke 方法替代 __call__
+        result = self.qa_chain.invoke({"query": query})
+        
+        # 处理搜索结果
+        sources = self._process_search_results(result.get("source_documents", []))
+        
+        # 生成回答
+        return self._generate_response(query, sources)
+    
+    def search_api_by_version(self, query: str, openapi_version: Optional[str] = None, top_k: int = 5) -> Dict[str, Any]:
+        """根据OpenAPI版本筛选搜索API
+        
+        Args:
+            query: 搜索查询
+            openapi_version: OpenAPI版本，可选
+            top_k: 返回结果数量，默认为5
+            
+        Returns:
+            包含搜索结果和生成的回答的字典
+        """
+        # 构建过滤条件
+        filter_condition = None
+        if openapi_version:
+            filter_condition = models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="openapi_version",
+                        match=models.MatchValue(value=openapi_version)
+                    )
+                ]
+            )
+        
+        # 使用带过滤条件的相似度搜索
+        search_results = self.vector_store.similarity_search(
+            query=query,
+            k=top_k,
+            filter=filter_condition
+        )
+        
+        # 处理搜索结果
+        sources = self._process_search_results(search_results)
+        
+        # 如果没有结果，返回特定消息
+        if not sources and openapi_version:
+            return {
+                "answer": f"抱歉，我没有找到符合 OpenAPI {openapi_version} 版本的API信息。",
+                "sources": []
+            }
+        
+        # 生成回答
+        return self._generate_response(query, sources)
     
     def clean_collection(self) -> bool:
         """清理向量数据库集合
@@ -275,4 +349,51 @@ class LangchainRAGService:
             return True
         except Exception as e:
             print(f"清理集合时出错: {str(e)}")
-            return False 
+            return False
+            
+    def delete_embeddings_by_file_path(self, file_path: str) -> int:
+        """根据文件路径删除向量数据库中的嵌入数据
+        
+        Args:
+            file_path: 要删除的文件路径
+            
+        Returns:
+            int: 删除的嵌入数据数量
+        """
+        try:
+            # 构建文件路径过滤条件
+            filter_condition = models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="file_path",
+                        match=models.MatchValue(value=file_path)
+                    )
+                ]
+            )
+            
+            # 获取要删除的点ID
+            search_results = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=filter_condition,
+                with_payload=False,
+                with_vectors=False
+            )
+            
+            point_ids = [point.id for point in search_results[0]]
+            
+            if not point_ids:
+                return 0
+                
+            # 删除点
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=models.PointIdsList(
+                    points=point_ids
+                )
+            )
+            
+            return len(point_ids)
+            
+        except Exception as e:
+            print(f"删除嵌入数据时出错: {str(e)}")
+            return 0 
