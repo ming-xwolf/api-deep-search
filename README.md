@@ -15,6 +15,10 @@
   - 本地HuggingFace模型嵌入
   - OpenAI嵌入
   - SiliconFlow嵌入
+- 多种向量数据库支持：
+  - Qdrant向量数据库
+  - FAISS本地向量数据库
+  - PostgreSQL pgvector扩展
 - 提供API端点进行查询和检索
 - 支持一键清理向量数据库和磁盘文件
 - 支持删除单个API规范文件及其对应的向量嵌入
@@ -27,11 +31,16 @@ API深度搜索系统由以下核心组件构成：
 
 ### 1. 向量存储服务 (VectorStore)
 
-管理API规范的存储、搜索和维护，依赖Qdrant向量数据库和嵌入服务。
+管理API规范的存储、搜索和维护，支持多种向量数据库：
+- Qdrant向量数据库
+- FAISS本地向量库
+- PostgreSQL pgvector扩展
 
-### 2. 向量数据库服务 (QdrantVectorService)
+### 2. 向量数据库服务
 
-封装对Qdrant向量数据库的底层操作，处理向量的存储和检索。
+- QdrantVectorService：封装对Qdrant向量数据库的底层操作
+- FAISSStore：封装对FAISS向量数据库的底层操作
+- PGVectorStore：封装对PostgreSQL pgvector的底层操作
 
 ### 3. LLM服务 (LLMService)
 
@@ -88,7 +97,11 @@ SILICONFLOW_BASE_URL=https://api.siliconflow.com/v1
 OPENAI_BASE_URL=https://api.openai.com/v1
 
 # 向量数据库配置
+VECTOR_STORE_PROVIDER=qdrant  # 可选值: qdrant, faiss, pgvector
 QDRANT_URL=http://localhost:6333  # 如果使用远程Qdrant服务
+FAISS_INDEX_DIR=data/faiss_index  # FAISS索引文件存储目录
+PG_CONNECTION_STRING=postgresql://postgres:postgres@localhost:5432/vectordb  # PostgreSQL连接字符串
+PG_TABLE_NAME=api_specs  # pgvector表名称
 
 # 嵌入配置
 EMBEDDING_PROVIDER=local  # 可选值: local, openai, siliconflow
@@ -103,6 +116,9 @@ OPENAI_MODEL=gpt-3.5-turbo  # OpenAI模型
 SILICONFLOW_MODEL=sf-llama3-70b-chat  # SiliconFlow模型
 TEMPERATURE=0.3  # 模型温度
 MAX_TOKENS=1000  # 最大token数
+
+# 调试模式
+DEBUG=False  # 是否启用调试模式
 ```
 
 ## 使用方法
@@ -121,6 +137,8 @@ python app.py
    - 搜索API接口: `/api/search` 接口
    - 按版本搜索API: `/api/search_by_version` 接口 
    - 列出文件: `/api/files` 接口
+   - 列出特定版本文件: `/api/files_by_version` 接口
+   - 获取OpenAPI版本列表: `/api/openapi_versions` 接口
    - 清理所有数据: `/api/clean` 接口
    - 删除单个文件: `/api/delete` 接口
    - 查看嵌入服务信息: `/api/embedding_info` 接口
@@ -169,4 +187,32 @@ docker-compose logs -f
 docker-compose down
 ```
 
-Docker环境会自动配置应用和Qdrant向量数据库，并保留上传的文件和向量数据。 
+Docker环境会自动配置应用和Qdrant向量数据库，并保留上传的文件和向量数据。
+
+## pgvector 使用说明
+
+如果要使用 PostgreSQL pgvector，需要确保：
+
+1. 已安装 PostgreSQL 数据库和 pgvector 扩展
+2. 在环境变量中设置 `VECTOR_STORE_PROVIDER=pgvector`
+3. 提供正确的 PostgreSQL 连接字符串：`PG_CONNECTION_STRING=postgresql://user:password@host:port/dbname`
+
+### 安装 pgvector 扩展
+
+在 PostgreSQL 中安装 pgvector 扩展的步骤：
+
+```sql
+-- 登录 PostgreSQL
+psql -U postgres
+
+-- 创建数据库
+CREATE DATABASE vectordb;
+
+-- 连接到新数据库
+\c vectordb
+
+-- 安装 pgvector 扩展
+CREATE EXTENSION vector;
+```
+
+系统会自动在首次使用时创建必要的表结构。 

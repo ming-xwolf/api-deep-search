@@ -301,8 +301,8 @@ async def list_files(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}")
 
-@router.post("/delete")
-async def delete_file(
+@router.post("/delete_vector_by_file_name")
+async def delete_vector_by_file_name(
     file_name: str = Body(..., embed=True),
     rag_service: LangchainRAGService = Depends(get_rag_service),
     file_storage: FileStorage = Depends(get_file_storage)
@@ -457,4 +457,5 @@ async def list_files_by_version(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}")
+
 

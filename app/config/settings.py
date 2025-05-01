@@ -19,10 +19,18 @@ class Settings(BaseModel):
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     
     # 向量数据库配置
-    vector_store_provider: Literal["qdrant", "faiss"] = os.getenv("VECTOR_STORE_PROVIDER", "qdrant")
+    vector_store_provider: Literal["qdrant", "faiss", "pgvector"] = os.getenv("VECTOR_STORE_PROVIDER", "qdrant")
+    
+    # Qdrant配置
     qdrant_url: str = os.getenv("QDRANT_URL", "http://192.168.2.51:16333")
     qdrant_collection_name: str = "api_specs"
+    
+    # FAISS配置
     faiss_index_dir: str = os.getenv("FAISS_INDEX_DIR", "data/faiss_index")
+    
+    # PGVector配置
+    pg_connection_string: str = os.getenv("PG_CONNECTION_STRING", "postgresql://postgres:postgres@localhost:5432/vectordb")
+    pg_table_name: str = os.getenv("PG_TABLE_NAME", "api_specs")
     
     # 嵌入配置
     embedding_provider: Literal["local", "openai", "siliconflow"] = os.getenv("EMBEDDING_PROVIDER", "local")

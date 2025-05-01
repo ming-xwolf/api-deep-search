@@ -3,6 +3,7 @@ from app.config.settings import settings
 from app.factory.vector_store_base import VectorStore
 from app.factory.qdrant_store import QdrantStore
 from app.factory.faiss_store import FAISSStore
+from app.factory.pgvector_store import PGVectorStore
 
 class VectorStoreFactory:
     """向量存储工厂类"""
@@ -24,6 +25,8 @@ class VectorStoreFactory:
             return QdrantStore()
         elif provider.lower() == "faiss":
             return FAISSStore()
+        elif provider.lower() == "pgvector":
+            return PGVectorStore()
         else:
             raise ValueError(f"不支持的向量存储提供商: {provider}")
     
@@ -49,6 +52,11 @@ class VectorStoreFactory:
         elif provider == "faiss":
             info.update({
                 "index_dir": settings.faiss_index_dir
+            })
+        elif provider == "pgvector":
+            info.update({
+                "connection_string": settings.pg_connection_string.replace(":", "***:").split("@")[0] + "@***",
+                "table_name": settings.pg_table_name
             })
         
         return info 

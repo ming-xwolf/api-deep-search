@@ -30,10 +30,13 @@ conda activate api-deep-search
    ```
 4. 创建`.env`文件，参考`.env-example`填写必要配置:
    ```
+   # API Keys
    DEEPSEEK_API_KEY=your_deepseek_api_key
-   DEEPSEEK_BASE_URL=https://api.deepseek.com/v1  # Deepseek API的基础URL
-   OPENAI_API_KEY=your_openai_api_key  # 如果使用OpenAI嵌入
+   OPENAI_API_KEY=your_openai_api_key  # 如果需要OpenAI嵌入
    SILICONFLOW_API_KEY=your_siliconflow_api_key  # 如果使用SiliconFlow嵌入
+   
+   # 模型API配置
+   DEEPSEEK_BASE_URL=https://api.deepseek.com/v1  # Deepseek API的基础URL
    SILICONFLOW_BASE_URL=https://api.siliconflow.com/v1  # SiliconFlow API的基础URL
    OPENAI_BASE_URL=https://api.openai.com/v1  # OpenAI API的基础URL
    
@@ -51,8 +54,11 @@ conda activate api-deep-search
    TEMPERATURE=0.3  # 模型温度
    MAX_TOKENS=1000  # 最大token数
    
+   # 向量数据库配置
    QDRANT_URL=http://localhost:6333  # 如果使用远程Qdrant服务
-   DEBUG=False
+   
+   # 调试模式
+   DEBUG=False  # 是否启用调试模式
    ```
 
 ## 基本用法
@@ -289,6 +295,16 @@ GET /api/openapi_versions
 }
 ```
 
+#### 按版本列出文件
+
+```http
+GET /api/files_by_version?openapi_version=3.0.0
+```
+
+此API将返回指定OpenAPI版本的API规范文件。如果不指定版本，则返回所有文件。
+
+响应格式与`/api/files`接口相同，但只包含指定版本的文件。
+
 #### 获取服务信息
 
 系统提供了几个API端点来查询当前服务的配置和状态信息：
@@ -343,16 +359,6 @@ GET /api/llm_info
   "max_tokens": "1000"
 }
 ```
-
-#### 按版本列出文件
-
-```http
-GET /api/files_by_version?openapi_version=3.0.0
-```
-
-此API将返回指定OpenAPI版本的API规范文件。如果不指定版本，则返回所有文件。
-
-响应格式与`/api/files`接口相同，但只包含指定版本的文件。
 
 ### 5. 示例代码
 
@@ -441,6 +447,10 @@ docker run -p 8000:8000 --env-file .env -v ./upload:/app/upload api-deep-search
 ### 向量数据库配置
 
 系统默认使用Qdrant作为向量数据库。可以通过`.env`文件中的`QDRANT_URL`配置连接地址，默认为`http://localhost:6333`。
+
+### 调试模式
+
+通过`.env`文件中的`DEBUG`配置项可以开启或关闭调试模式。开启调试模式后，系统会输出更多的日志信息，有助于排查问题。
 
 ## 故障排除
 
