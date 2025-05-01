@@ -7,6 +7,7 @@ import tempfile
 from app.models.schema import SearchRequest, SearchResponse, UploadAPISpecRequest, APIEndpoint, APIEndpointWithSource
 from app.factory.llm_factory import LLMFactory
 from app.factory.embedding_factory import EmbeddingFactory
+from app.factory.vector_store_factory import VectorStoreFactory
 from app.services.file_storage import FileStorage
 from app.utils.openapi_parser import OpenAPIParser
 from app.services.langchain_rag_service import LangchainRAGService
@@ -28,7 +29,8 @@ def get_info() -> Dict[str, Any]:
     """获取系统配置信息"""
     return {
         "llm": LLMFactory.get_info(),
-        "embedding": EmbeddingFactory.get_info()
+        "embedding": EmbeddingFactory.get_info(),
+        "vector_store": VectorStoreFactory.get_info()
     }
 
 @router.post("/search", response_model=SearchResponse)
@@ -301,8 +303,8 @@ async def list_files(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取文件列表时出错: {str(e)}")
 
-@router.post("/delete_vector_by_file_name")
-async def delete_vector_by_file_name(
+@router.post("/delete")
+async def delete(
     file_name: str = Body(..., embed=True),
     rag_service: LangchainRAGService = Depends(get_rag_service),
     file_storage: FileStorage = Depends(get_file_storage)

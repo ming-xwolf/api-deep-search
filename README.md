@@ -132,18 +132,16 @@ python app.py
 2. 访问API文档: http://localhost:8000/docs 
 
 3. 主要功能:
+   - 获取系统配置信息(LLM、嵌入模型和向量存储): `/api/info` 接口
    - 上传API规范(URL或内容): `/api/upload` 接口
    - 上传API规范(本地文件): `/api/upload_file` 接口
-   - 搜索API接口: `/api/search` 接口
-   - 按版本搜索API: `/api/search_by_version` 接口 
+   - 搜索API: `/api/search` 接口
+   - 按版本搜索API: `/api/search_api_by_version` 接口 
    - 列出文件: `/api/files` 接口
    - 列出特定版本文件: `/api/files_by_version` 接口
-   - 获取OpenAPI版本列表: `/api/openapi_versions` 接口
    - 清理所有数据: `/api/clean` 接口
-   - 删除单个文件: `/api/delete` 接口
-   - 查看嵌入服务信息: `/api/embedding_info` 接口
-   - 查看向量服务信息: `/api/vector_service_info` 接口
-   - 查看LLM服务信息: `/api/llm_info` 接口
+   - 删除向量数据: `/api/delete_vector_by_file_name` 接口
+   - 健康检查: `/api/health` 接口
 
 详细使用方法请参考 [USAGE.md](USAGE.md) 
 

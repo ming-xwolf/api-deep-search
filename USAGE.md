@@ -24,10 +24,34 @@ conda env create -f environment.yml
 conda activate api-deep-search
 ```
 
-3. 安装Qdrant向量数据库，可通过Docker安装:
+3. 安装向量数据库（选择以下之一）：
+
+   a. Qdrant向量数据库（通过Docker安装）:
    ```bash
    docker run -p 6333:6333 -p 6334:6334 -v ./qdrant_data:/qdrant/storage qdrant/qdrant
    ```
+
+   b. PostgreSQL与pgvector扩展：
+   ```bash
+   # 安装PostgreSQL和pgvector扩展
+   docker run -d \
+     --name postgres-pgvector \
+     -e POSTGRES_PASSWORD=postgres \
+     -e POSTGRES_USER=postgres \
+     -e POSTGRES_DB=vector_db \
+     -p 5432:5432 \
+     pgvector/pgvector:pg16
+   ```
+
+   在数据库中创建pgvector扩展：
+   ```bash
+   # 连接到PostgreSQL
+   psql -h localhost -U postgres -d vector_db
+   
+   # 创建pgvector扩展
+   CREATE EXTENSION IF NOT EXISTS vector;
+   ```
+
 4. 创建`.env`文件，参考`.env-example`填写必要配置:
    ```
    # API Keys
@@ -39,6 +63,19 @@ conda activate api-deep-search
    DEEPSEEK_BASE_URL=https://api.deepseek.com/v1  # Deepseek API的基础URL
    SILICONFLOW_BASE_URL=https://api.siliconflow.com/v1  # SiliconFlow API的基础URL
    OPENAI_BASE_URL=https://api.openai.com/v1  # OpenAI API的基础URL
+   
+   # 向量数据库配置
+   VECTOR_STORE_PROVIDER=qdrant  # 可选值: qdrant, faiss, pgvector
+   
+   # Qdrant配置（使用Qdrant时）
+   QDRANT_URL=http://localhost:6333
+   
+   # FAISS配置（使用FAISS时）
+   FAISS_INDEX_DIR=data/faiss_index
+   
+   # PostgreSQL配置（使用pgvector时）
+   PG_CONNECTION_STRING=postgresql://postgres:postgres@localhost:5432/vectordb
+   PG_TABLE_NAME=api_specs
    
    # 嵌入配置
    EMBEDDING_PROVIDER=local  # 可选值: local, openai, siliconflow
@@ -53,9 +90,6 @@ conda activate api-deep-search
    SILICONFLOW_MODEL=sf-llama3-70b-chat  # SiliconFlow模型
    TEMPERATURE=0.3  # 模型温度
    MAX_TOKENS=1000  # 最大token数
-   
-   # 向量数据库配置
-   QDRANT_URL=http://localhost:6333  # 如果使用远程Qdrant服务
    
    # 调试模式
    DEBUG=False  # 是否启用调试模式
@@ -90,6 +124,38 @@ python examples/search_api.py
 ### 4. API使用
 
 项目提供以下HTTP API:
+
+#### 系统信息
+
+```http
+GET /api/info
+```
+
+此API将返回系统的配置信息，包括LLM、嵌入模型和向量存储的配置。
+
+响应示例:
+
+```json
+{
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "temperature": 0.3,
+    "max_tokens": 1000
+  },
+  "embedding": {
+    "provider": "local",
+    "model": "BAAI/bge-large-zh-v1.5",
+    "dimension": 1024
+  },
+  "vector_store": {
+    "provider": "pgvector",
+    "embedding_dimension": 1024,
+    "connection_string": "postgresql://postgres***:***@***",
+    "table_name": "api_specs"
+  }
+}
+```
 
 #### 上传API规范
 
@@ -178,7 +244,7 @@ Content-Type: application/json
 #### 按OpenAPI版本搜索API
 
 ```http
-POST /api/search_by_version
+POST /api/search_api_by_version
 Content-Type: application/json
 
 {
@@ -204,7 +270,7 @@ POST /api/clean
 
 ```json
 {
-  "message": "成功清空 api_specs 集合，并删除了 8/8 个磁盘文件"
+  "message": "成功清空向量数据库集合，并删除了 8/8 个磁盘文件"
 }
 ```
 
@@ -229,7 +295,10 @@ GET /api/files
       "file_size": 24680,
       "file_size_human": "24.10 KB",
       "modified_time": "2024-05-16 12:30:45",
-      "file_type": "JSON"
+      "file_type": "JSON",
+      "api_title": "用户管理API",
+      "api_version": "1.0.0",
+      "openapi_version": "3.0.0"
     },
     {
       "file_name": "产品API_v2.0.0_20240515183012_e5f6g7h8.yaml",
@@ -237,7 +306,10 @@ GET /api/files
       "file_size": 18540,
       "file_size_human": "18.11 KB",
       "modified_time": "2024-05-15 18:30:12",
-      "file_type": "YAML"
+      "file_type": "YAML",
+      "api_title": "产品API",
+      "api_version": "2.0.0",
+      "openapi_version": "3.1.0"
     }
   ],
   "total_count": 2,
@@ -248,14 +320,14 @@ GET /api/files
 
 响应内容包括:
 - 文件列表（按修改时间降序排列，最新的在前）
-- 每个文件的名称、路径、大小（字节数和人类可读格式）、修改时间和文件类型
+- 每个文件的名称、路径、大小（字节数和人类可读格式）、修改时间、文件类型和API信息
 - 总文件数量
 - 总文件大小（字节数和人类可读格式）
 
-#### 删除单个文件
+#### 仅删除向量数据
 
 ```http
-POST /api/delete
+POST /api/delete_vector_by_file_name
 Content-Type: application/json
 
 {
@@ -263,37 +335,18 @@ Content-Type: application/json
 }
 ```
 
-此API将删除指定的API规范文件，并从向量数据库中移除相关的嵌入数据。
+此API将仅从向量数据库中删除与指定文件相关的向量数据，但不会删除磁盘上的文件。这在需要重新索引文件或修复向量数据问题时特别有用。
 
 响应示例:
 
 ```json
 {
-  "message": "成功删除文件 用户管理API_v1.0.0_20240516123045_a1b2c3d4.json 并移除了 8 个嵌入数据"
+  "message": "成功删除文件 用户管理API_v1.0.0_20240516123045_a1b2c3d4.json 对应的向量嵌入",
+  "deleted_embeddings_count": 8
 }
 ```
 
-响应消息中会显示成功删除的文件名，以及从向量数据库中删除的数据点数量。
-
-#### 获取OpenAPI版本列表
-
-```http
-GET /api/openapi_versions
-```
-
-此API将返回向量数据库中存储的所有OpenAPI规范版本。
-
-响应示例:
-
-```json
-{
-  "versions": [
-    "2.0",
-    "3.0.0",
-    "3.1.0"
-  ]
-}
-```
+响应消息会显示成功删除的向量数据数量。
 
 #### 按版本列出文件
 
@@ -303,60 +356,21 @@ GET /api/files_by_version?openapi_version=3.0.0
 
 此API将返回指定OpenAPI版本的API规范文件。如果不指定版本，则返回所有文件。
 
-响应格式与`/api/files`接口相同，但只包含指定版本的文件。
+响应格式与`/api/files`接口相同，但只包含指定版本的文件，并额外返回`filtered_version`字段。
 
-#### 获取服务信息
-
-系统提供了几个API端点来查询当前服务的配置和状态信息：
-
-1. 获取嵌入服务信息：
+#### 健康检查
 
 ```http
-GET /api/embedding_info
+GET /api/health
 ```
+
+此API用于检查服务是否正常运行。
 
 响应示例:
 
 ```json
 {
-  "provider": "openai",
-  "model": "text-embedding-3-small",
-  "dimension": "1536"
-}
-```
-
-2. 获取向量服务信息：
-
-```http
-GET /api/vector_service_info
-```
-
-响应示例:
-
-```json
-{
-  "service_type": "qdrant",
-  "collection_name": "api_specs",
-  "collection_exists": true,
-  "points_count": 143,
-  "url": "http://localhost:6333"
-}
-```
-
-3. 获取LLM服务信息：
-
-```http
-GET /api/llm_info
-```
-
-响应示例:
-
-```json
-{
-  "provider": "deepseek",
-  "model": "deepseek-chat",
-  "temperature": "0.3",
-  "max_tokens": "1000"
+  "status": "healthy"
 }
 ```
 
