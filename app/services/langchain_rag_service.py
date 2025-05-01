@@ -1,14 +1,13 @@
 from typing import List, Dict, Any, Optional
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
-from qdrant_client import QdrantClient
-from qdrant_client.http import models
 import json
 
 from app.config.settings import settings
 from app.models.schema import APIEndpoint, APISpec
 from app.factory.llm_factory import LLMFactory
-from app.factory.vector_store_factory import VectorStoreFactory
+from app.factory.vector_store_factory import VectorStoreFactory, VectorStore
+from qdrant_client.http.models import Filter, FieldCondition, MatchValue
 
 class LangchainRAGService:
     """使用 Langchain 实现的 RAG 服务"""
@@ -47,6 +46,61 @@ class LangchainRAGService:
             chain_type_kwargs={"prompt": prompt}
         )
     
+    def search_by_version(self, query: str, openapi_version: Optional[str] = None, top_k: int = 5) -> List[Dict[str, Any]]:
+        """根据 OpenAPI 版本搜索文档
+        
+        Args:
+            query: 搜索查询
+            openapi_version: OpenAPI 版本
+            top_k: 返回结果数量
+            
+        Returns:
+            List[Dict[str, Any]]: 搜索结果列表
+        """
+        filter_condition = None
+        if openapi_version:
+            filter_condition = Filter(
+                must=[
+                    FieldCondition(
+                        key="openapi_version",
+                        match=MatchValue(value=openapi_version)
+                    )
+                ]
+            )
+        
+        search_results = self.vector_store.similarity_search(
+            query=query,
+            k=top_k,
+            filter=filter_condition
+        )
+        
+        return self._process_search_results(search_results)
+    
+    def _process_search_results(self, search_results: List[Any]) -> List[Dict[str, Any]]:
+        """处理搜索结果
+        
+        Args:
+            search_results: 搜索结果列表
+            
+        Returns:
+            List[Dict[str, Any]]: 处理后的结果列表
+        """
+        sources = []
+        for doc in search_results:
+            metadata = doc.metadata
+            if "endpoint" in metadata:
+                sources.append({
+                    "score": metadata.get("score", 0),
+                    "path": metadata.get("path"),
+                    "method": metadata.get("method"),
+                    "api_title": metadata.get("api_title"),
+                    "api_version": metadata.get("api_version"),
+                    "openapi_version": metadata.get("openapi_version"),
+                    "file_path": metadata.get("file_path"),
+                    "endpoint": metadata.get("endpoint")
+                })
+        return sources
+    
     def store_api_spec(self, api_spec: APISpec, file_path: Optional[str] = None):
         """存储 API 规范
         
@@ -71,7 +125,8 @@ class LangchainRAGService:
                 "summary": endpoint.summary,
                 "description": endpoint.description,
                 "tags": endpoint.tags,
-                "endpoint": endpoint.dict()
+                "endpoint": endpoint.dict(),
+                "text": text  # 存储原始文本，用于FAISS重建
             }
             
             if file_path:
@@ -187,31 +242,52 @@ class LangchainRAGService:
         
         return "".join(prompt_parts)
     
-    def _process_search_results(self, search_results: List[Any]) -> List[Dict[str, Any]]:
-        """处理搜索结果
+    def search(self, query: str) -> Dict[str, Any]:
+        """搜索API并生成回答
         
         Args:
-            search_results: 搜索结果列表
+            query: 搜索查询
             
         Returns:
-            处理后的源文档列表
+            包含搜索结果和生成的回答的字典
         """
-        sources = []
-        for doc in search_results:
-            metadata = doc.metadata
-            if "endpoint" in metadata:
-                sources.append({
-                    "score": doc.metadata.get("score", 0),
-                    "path": doc.metadata.get("path"),
-                    "method": doc.metadata.get("method"),
-                    "api_title": doc.metadata.get("api_title"),
-                    "api_version": doc.metadata.get("api_version"),
-                    "openapi_version": doc.metadata.get("openapi_version"),
-                    "file_path": doc.metadata.get("file_path"),
-                    "endpoint": doc.metadata.get("endpoint")
-                })
-        return sources
-
+        # 使用 invoke 方法替代 __call__
+        result = self.qa_chain.invoke({"query": query})
+        
+        # 处理搜索结果
+        sources = self._process_search_results(result.get("source_documents", []))
+        
+        # 生成回答
+        return self._generate_response(query, sources)
+    
+    def search_api_by_version(self, query: str, openapi_version: Optional[str] = None, top_k: int = 5) -> Dict[str, Any]:
+        """根据OpenAPI版本筛选搜索API
+        
+        Args:
+            query: 搜索查询
+            openapi_version: OpenAPI版本，可选
+            top_k: 返回结果数量，默认为5
+            
+        Returns:
+            包含搜索结果和生成的回答的字典
+        """
+        # 使用自己的搜索方法
+        sources = self.search_by_version(
+            query=query,
+            openapi_version=openapi_version,
+            top_k=top_k
+        )
+        
+        # 如果没有结果，返回特定消息
+        if not sources and openapi_version:
+            return {
+                "answer": f"抱歉，我没有找到符合 OpenAPI {openapi_version} 版本的API信息。",
+                "sources": []
+            }
+        
+        # 生成回答
+        return self._generate_response(query, sources)
+    
     def _generate_response(self, query: str, sources: List[Dict[str, Any]]) -> Dict[str, Any]:
         """生成回答
         
@@ -246,125 +322,22 @@ class LangchainRAGService:
             "answer": response.content,
             "sources": sources
         }
-
-    def search(self, query: str) -> Dict[str, Any]:
-        """搜索API并生成回答
-        
-        Args:
-            query: 搜索查询
-            
-        Returns:
-            包含搜索结果和生成的回答的字典
-        """
-        # 使用 invoke 方法替代 __call__
-        result = self.qa_chain.invoke({"query": query})
-        
-        # 处理搜索结果
-        sources = self._process_search_results(result.get("source_documents", []))
-        
-        # 生成回答
-        return self._generate_response(query, sources)
-    
-    def search_api_by_version(self, query: str, openapi_version: Optional[str] = None, top_k: int = 5) -> Dict[str, Any]:
-        """根据OpenAPI版本筛选搜索API
-        
-        Args:
-            query: 搜索查询
-            openapi_version: OpenAPI版本，可选
-            top_k: 返回结果数量，默认为5
-            
-        Returns:
-            包含搜索结果和生成的回答的字典
-        """
-        # 构建过滤条件
-        filter_condition = None
-        if openapi_version:
-            filter_condition = models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="openapi_version",
-                        match=models.MatchValue(value=openapi_version)
-                    )
-                ]
-            )
-        
-        # 使用带过滤条件的相似度搜索
-        search_results = self.vector_store.similarity_search(
-            query=query,
-            k=top_k,
-            filter=filter_condition
-        )
-        
-        # 处理搜索结果
-        sources = self._process_search_results(search_results)
-        
-        # 如果没有结果，返回特定消息
-        if not sources and openapi_version:
-            return {
-                "answer": f"抱歉，我没有找到符合 OpenAPI {openapi_version} 版本的API信息。",
-                "sources": []
-            }
-        
-        # 生成回答
-        return self._generate_response(query, sources)
     
     def clean_collection(self) -> bool:
-        """清理向量数据库集合
+        """清理向量存储中的所有文档
         
         Returns:
-            bool: 操作是否成功
+            bool: 是否成功
         """
-        try:
-            self.vector_store.client.delete_collection(collection_name=settings.qdrant_collection_name)
-            VectorStoreFactory._ensure_collection_exists(self.vector_store.client, settings.qdrant_collection_name)
-            return True
-        except Exception as e:
-            print(f"清理集合时出错: {str(e)}")
-            return False
+        return self.vector_store.clean()
             
     def delete_embeddings_by_file_path(self, file_path: str) -> int:
-        """根据文件路径删除向量数据库中的嵌入数据
+        """根据文件路径删除向量存储中的文档
         
         Args:
-            file_path: 要删除的文件路径
+            file_path: 文件路径
             
         Returns:
-            int: 删除的嵌入数据数量
+            int: 删除的文档数量
         """
-        try:
-            # 构建文件路径过滤条件
-            filter_condition = models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="file_path",
-                        match=models.MatchValue(value=file_path)
-                    )
-                ]
-            )
-            
-            # 获取要删除的点ID
-            search_results = self.vector_store.client.scroll(
-                collection_name=settings.qdrant_collection_name,
-                scroll_filter=filter_condition,
-                with_payload=False,
-                with_vectors=False
-            )
-            
-            point_ids = [point.id for point in search_results[0]]
-            
-            if not point_ids:
-                return 0
-                
-            # 删除点
-            self.vector_store.client.delete(
-                collection_name=settings.qdrant_collection_name,
-                points_selector=models.PointIdsList(
-                    points=point_ids
-                )
-            )
-            
-            return len(point_ids)
-            
-        except Exception as e:
-            print(f"删除嵌入数据时出错: {str(e)}")
-            return 0 
+        return self.vector_store.delete_by_file_path(file_path) 

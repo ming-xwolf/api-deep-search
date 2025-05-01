@@ -35,6 +35,15 @@ class EmbeddingFactory:
             raise ValueError(f"不支持的嵌入模型提供商: {settings.embedding_provider}")
     
     @staticmethod
+    def create_embedding_function() -> Union[OpenAIEmbeddings, HuggingFaceEmbeddings]:
+        """创建嵌入模型实例（与create_embedding相同，为保持接口兼容性）
+        
+        Returns:
+            Union[OpenAIEmbeddings, HuggingFaceEmbeddings]: 嵌入模型实例
+        """
+        return EmbeddingFactory.create_embedding()
+    
+    @staticmethod
     def get_info() -> dict:
         """获取当前嵌入模型配置信息
         

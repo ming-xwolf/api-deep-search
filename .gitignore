@@ -41,3 +41,9 @@ logs/
 # OS specific
 .DS_Store
 Thumbs.db 
+
+# Data
+data/
+
+# Upload
+upload/
