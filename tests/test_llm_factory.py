@@ -1,5 +1,5 @@
 from unittest import TestCase
-from app.services.llm_factory import LLMFactory
+from app.factory.llm_factory import LLMFactory
 from app.config.settings import settings
 
 class TestLLMFactory(TestCase):

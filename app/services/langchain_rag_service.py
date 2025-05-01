@@ -1,5 +1,4 @@
 from typing import List, Dict, Any, Optional
-from langchain_qdrant import Qdrant
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from qdrant_client import QdrantClient
@@ -8,45 +7,17 @@ import json
 
 from app.config.settings import settings
 from app.models.schema import APIEndpoint, APISpec
-from app.services.llm_factory import LLMFactory
-from app.services.embedding_factory import EmbeddingFactory
+from app.factory.llm_factory import LLMFactory
+from app.factory.vector_store_factory import VectorStoreFactory
 
 class LangchainRAGService:
     """使用 Langchain 实现的 RAG 服务"""
     
     def __init__(self):
         """初始化服务"""
-        self.embeddings = EmbeddingFactory.create_embedding()
         self.llm = LLMFactory.create_llm()
-        self.client = QdrantClient(url=settings.qdrant_url)
-        self.collection_name = settings.qdrant_collection_name
-        
-        # 确保集合存在
-        self._ensure_collection_exists()
-        
-        # 初始化向量存储
-        self.vector_store = Qdrant(
-            client=self.client,
-            collection_name=self.collection_name,
-            embeddings=self.embeddings
-        )
-        
-        # 初始化 QA 链
+        self.vector_store = VectorStoreFactory.create_vector_store()
         self.qa_chain = self._create_qa_chain()
-    
-    def _ensure_collection_exists(self):
-        """确保 Qdrant 集合存在"""
-        collections = self.client.get_collections().collections
-        collection_names = [collection.name for collection in collections]
-        
-        if self.collection_name not in collection_names:
-            self.client.create_collection(
-                collection_name=self.collection_name,
-                vectors_config=models.VectorParams(
-                    size=settings.embedding_dimension,  # 使用配置的嵌入维度
-                    distance=models.Distance.COSINE
-                )
-            )
     
     def _create_qa_chain(self) -> RetrievalQA:
         """创建 QA 链"""
@@ -344,8 +315,8 @@ class LangchainRAGService:
             bool: 操作是否成功
         """
         try:
-            self.client.delete_collection(collection_name=self.collection_name)
-            self._ensure_collection_exists()
+            self.vector_store.client.delete_collection(collection_name=settings.qdrant_collection_name)
+            VectorStoreFactory._ensure_collection_exists(self.vector_store.client, settings.qdrant_collection_name)
             return True
         except Exception as e:
             print(f"清理集合时出错: {str(e)}")
@@ -372,8 +343,8 @@ class LangchainRAGService:
             )
             
             # 获取要删除的点ID
-            search_results = self.client.scroll(
-                collection_name=self.collection_name,
+            search_results = self.vector_store.client.scroll(
+                collection_name=settings.qdrant_collection_name,
                 scroll_filter=filter_condition,
                 with_payload=False,
                 with_vectors=False
@@ -385,8 +356,8 @@ class LangchainRAGService:
                 return 0
                 
             # 删除点
-            self.client.delete(
-                collection_name=self.collection_name,
+            self.vector_store.client.delete(
+                collection_name=settings.qdrant_collection_name,
                 points_selector=models.PointIdsList(
                     points=point_ids
                 )

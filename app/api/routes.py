@@ -5,8 +5,8 @@ from datetime import datetime
 import tempfile
 
 from app.models.schema import SearchRequest, SearchResponse, UploadAPISpecRequest, APIEndpoint, APIEndpointWithSource
-from app.services.llm_factory import LLMFactory
-from app.services.embedding_factory import EmbeddingFactory
+from app.factory.llm_factory import LLMFactory
+from app.factory.embedding_factory import EmbeddingFactory
 from app.services.file_storage import FileStorage
 from app.utils.openapi_parser import OpenAPIParser
 from app.services.langchain_rag_service import LangchainRAGService
