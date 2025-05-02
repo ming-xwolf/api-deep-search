@@ -26,7 +26,13 @@ class SearchRequest(BaseModel):
     """搜索请求模型"""
     query: str
     top_k: int = 5
-    
+
+class SearchByVersionRequest(BaseModel):
+    """按版本搜索请求模型"""
+    query: str
+    top_k: int = 5
+    openapi_version: Optional[str] = None
+
 class APIEndpointWithSource(APIEndpoint):
     """带有源文件信息的API端点数据模型"""
     file_path: Optional[str] = None
