@@ -24,6 +24,10 @@
 - 支持删除单个API规范文件及其对应的向量嵌入
 - 支持从本地磁盘上传API规范文件
 - 支持按OpenAPI版本搜索和过滤API端点
+- 支持API检测功能：
+  - 上传ZIP文件检测API
+  - 通过GitHub仓库URL检测API
+  - 支持多种API类型检测：REST、WebSocket、gRPC、GraphQL和OpenAPI
 
 ## 系统架构
 

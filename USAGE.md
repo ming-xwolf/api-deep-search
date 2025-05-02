@@ -520,4 +520,129 @@ docker-compose logs -f
 
 ```bash
 docker logs api-deep-search
+```
+
+## API检测功能
+
+系统支持从各种来源检测API定义，包括代码库文件和GitHub仓库。
+
+### 检测支持的API类型
+
+系统可以检测以下类型的API：
+
+- **REST API**：检测各种框架中的REST端点定义，如FastAPI、Flask、Express等
+- **WebSocket API**：检测WebSocket连接和服务端点
+- **gRPC API**：检测gRPC服务和方法定义
+- **GraphQL API**：检测GraphQL查询和变更
+- **OpenAPI/Swagger**：检测OpenAPI规范文件
+
+### 从ZIP文件检测API
+
+您可以上传包含代码库的ZIP文件，系统会自动扫描并检测其中的API定义：
+
+```http
+POST /api/api_detector/detect
+Content-Type: multipart/form-data
+
+file=@/path/to/local/codebase.zip
+```
+
+响应示例:
+
+```json
+{
+  "message": "检测完成，发现 15 个API端点",
+  "api_types": ["REST", "WebSocket", "gRPC"],
+  "api_count": 15,
+  "apis": [
+    {
+      "type": "REST",
+      "path": "/api/users",
+      "file": "src/controllers/user_controller.js",
+      "line": 24
+    },
+    {
+      "type": "WebSocket",
+      "path": "/ws/notifications",
+      "file": "src/websocket/notification_service.js",
+      "line": 18
+    }
+    // 更多API...
+  ]
+}
+```
+
+### 从GitHub仓库URL检测API
+
+您可以直接从GitHub仓库URL检测API，无需手动下载和上传代码：
+
+```http
+POST /api/api_detector/detect_from_github
+Content-Type: application/json
+
+{
+  "github_url": "https://github.com/username/repo",
+  "branch": "main",
+  "use_http_download": true
+}
+```
+
+参数说明:
+- `github_url`: GitHub仓库URL，必须以 "https://github.com/" 开头
+- `branch`: 要检测的分支名称，可选，默认为仓库的默认分支
+- `use_http_download`: 是否使用HTTP下载ZIP而不是git克隆，可选，默认为false
+
+响应示例:
+
+```json
+{
+  "message": "检测完成，发现 8 个API端点",
+  "repository": "https://github.com/username/repo",
+  "branch": "main",
+  "api_types": ["REST", "GraphQL"],
+  "api_count": 8,
+  "apis": [
+    {
+      "type": "REST",
+      "path": "/api/products",
+      "file": "controllers/product_controller.js",
+      "line": 15
+    },
+    {
+      "type": "GraphQL",
+      "operation": "query",
+      "field": "getUser",
+      "return_type": "User!",
+      "file": "schema/user.graphql",
+      "line": 10
+    }
+    // 更多API...
+  ]
+}
+```
+
+### 获取支持的API类型
+
+获取系统支持检测的API类型和编程语言列表：
+
+```http
+GET /api/api_detector/supported_types
+```
+
+响应示例:
+
+```json
+{
+  "supported_types": [
+    {"name": "REST", "description": "RESTful API (HTTP GET/POST/PUT/DELETE等)"},
+    {"name": "WebSocket", "description": "WebSocket API"},
+    {"name": "gRPC", "description": "gRPC服务和方法"},
+    {"name": "GraphQL", "description": "GraphQL查询和变更"},
+    {"name": "OpenAPI", "description": "OpenAPI/Swagger规范"}
+  ],
+  "supported_languages": [
+    "Python", "JavaScript", "TypeScript", "Java", 
+    "Go", "PHP", "Ruby", "C#", "Protocol Buffers"
+  ]
+}
 ``` 
