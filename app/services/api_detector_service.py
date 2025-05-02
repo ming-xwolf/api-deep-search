@@ -7,11 +7,13 @@ import os
 import re
 import json
 import yaml
-from typing import Dict, List, Any, Optional, Set
+from typing import Dict, List, Any, Optional, Set, Tuple
 import glob
 import zipfile
 import tempfile
 import shutil
+import subprocess
+import httpx
 from pathlib import Path
 
 class APIDetector:
@@ -554,4 +556,185 @@ class APIDetectorService:
             if f'/{ignore_dir}/' in file_path or file_path.endswith(f'/{ignore_dir}'):
                 return True
         
-        return False 
+        return False
+    
+    def process_github_repo(self, github_url: str, branch: Optional[str] = None, use_http_download: bool = False) -> Dict[str, Any]:
+        """从GitHub仓库URL检测API
+        
+        Args:
+            github_url: GitHub仓库URL，格式如 https://github.com/username/repo
+            branch: 要检测的分支名称，默认为仓库的默认分支
+            use_http_download: 是否使用HTTP下载ZIP而不是git克隆，默认为False
+            
+        Returns:
+            Dict[str, Any]: 检测结果
+            
+        Raises:
+            ValueError: 当GitHub URL格式不正确或仓库不存在时
+            RuntimeError: 当克隆或下载失败时
+        """
+        # 创建临时目录用于克隆仓库
+        temp_dir = None
+        scan_dir = None
+        
+        try:
+            # 验证GitHub URL格式
+            if not github_url.startswith("https://github.com/"):
+                raise ValueError("请提供有效的GitHub仓库URL，格式为 https://github.com/username/repo")
+            
+            # 创建临时目录
+            temp_dir = tempfile.mkdtemp()
+            print(f"创建临时目录: {temp_dir}")
+            
+            # 解析GitHub用户名和仓库名
+            _, _, _, username, repo = github_url.rstrip('/').split('/')
+            
+            if use_http_download:
+                scan_dir = self._download_github_repo(username, repo, branch, temp_dir)
+            else:
+                scan_dir = self._clone_github_repo(github_url, branch, temp_dir)
+            
+            print(f"开始扫描目录: {scan_dir}")
+            # 扫描仓库目录
+            result = self.scan_directory(scan_dir)
+            print(f"扫描完成，发现 {result['api_count']} 个API端点")
+            
+            # 添加仓库信息
+            result["repository"] = github_url
+            result["branch"] = branch or "默认分支"
+            
+            return result
+            
+        finally:
+            # 清理临时目录
+            if temp_dir and os.path.exists(temp_dir):
+                print(f"清理临时目录: {temp_dir}")
+                try:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except Exception as e:
+                    print(f"清理临时目录时出错: {str(e)}")
+    
+    def _clone_github_repo(self, github_url: str, branch: Optional[str], temp_dir: str) -> str:
+        """使用git命令克隆GitHub仓库
+        
+        Args:
+            github_url: GitHub仓库URL
+            branch: 分支名称
+            temp_dir: 临时目录路径
+            
+        Returns:
+            str: 扫描目录路径
+            
+        Raises:
+            RuntimeError: 当克隆失败时
+        """
+        # 构建git clone命令
+        clone_cmd = ["git", "clone"]
+        
+        # 如果指定了分支，添加分支参数
+        if branch:
+            clone_cmd.extend(["-b", branch])
+        
+        # 添加深度参数，减少下载量
+        clone_cmd.extend(["--depth", "1"])
+        
+        # 添加仓库URL和目标目录
+        clone_cmd.extend([github_url, temp_dir])
+        
+        print(f"执行命令: {' '.join(clone_cmd)}")
+        
+        # 执行克隆命令
+        process = subprocess.Popen(
+            clone_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        stdout, stderr = process.communicate()
+        
+        stdout_str = stdout.decode('utf-8', errors='ignore') if stdout else ""
+        stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
+        
+        print(f"命令返回码: {process.returncode}")
+        if stdout_str:
+            print(f"标准输出: {stdout_str}")
+        if stderr_str:
+            print(f"标准错误: {stderr_str}")
+        
+        if process.returncode != 0:
+            raise RuntimeError(f"仓库克隆失败: {stderr_str}")
+        
+        # 检查目录是否为空
+        if not os.listdir(temp_dir):
+            raise RuntimeError("仓库克隆成功但目录为空")
+            
+        # 在git克隆模式下，直接使用temp_dir作为扫描目录
+        return temp_dir
+    
+    def _download_github_repo(self, username: str, repo: str, branch: Optional[str], temp_dir: str) -> str:
+        """通过HTTP下载GitHub仓库ZIP文件
+        
+        Args:
+            username: GitHub用户名
+            repo: 仓库名称
+            branch: 分支名称
+            temp_dir: 临时目录路径
+            
+        Returns:
+            str: 扫描目录路径
+            
+        Raises:
+            RuntimeError: 当下载或解压失败时
+        """
+        # 使用HTTP下载ZIP文件
+        print(f"使用HTTP下载仓库: {username}/{repo}")
+        
+        # 构建下载URL（使用默认分支或指定分支）
+        zip_branch = branch or 'main'
+        download_url = f"https://github.com/{username}/{repo}/archive/refs/heads/{zip_branch}.zip"
+        
+        print(f"下载URL: {download_url}")
+        
+        try:
+            # 下载ZIP文件（使用同步客户端，启用重定向跟随）
+            with httpx.Client(timeout=60, follow_redirects=True) as client:
+                response = client.get(download_url)
+                response.raise_for_status()  # 如果请求失败则抛出异常
+                
+            # 将内容保存到临时ZIP文件
+            zip_content = response.content
+            zip_file_path = os.path.join(temp_dir, "repo.zip")
+            with open(zip_file_path, 'wb') as f:
+                f.write(zip_content)
+                
+            print(f"下载完成，ZIP大小: {len(zip_content)} 字节")
+            
+            # 解压ZIP文件到临时目录
+            print(f"开始解压ZIP文件: {zip_file_path}")
+            with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+                
+            # 删除ZIP文件
+            os.unlink(zip_file_path)
+            
+            # 查找解压后的主目录
+            extracted_dirs = [d for d in os.listdir(temp_dir) if os.path.isdir(os.path.join(temp_dir, d))]
+            if not extracted_dirs:
+                raise RuntimeError("ZIP文件解压成功但未找到目录")
+            
+            # 使用第一个目录作为工作目录
+            scan_dir = os.path.join(temp_dir, extracted_dirs[0])
+            print(f"解压完成，扫描目录: {scan_dir}")
+            return scan_dir
+            
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                # 尝试使用master分支
+                if zip_branch != 'master':
+                    print(f"分支 {zip_branch} 不存在，尝试使用master分支")
+                    return self._download_github_repo(username, repo, 'master', temp_dir)
+                else:
+                    raise RuntimeError(f"仓库或分支不存在: {username}/{repo}/{zip_branch}")
+            else:
+                raise RuntimeError(f"下载仓库失败: {str(e)}")
+        except Exception as e:
+            raise RuntimeError(f"处理仓库ZIP文件时出错: {str(e)}") 
