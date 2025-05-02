@@ -36,17 +36,21 @@ API深度搜索系统由以下核心组件构成：
 - FAISS本地向量库
 - PostgreSQL pgvector扩展
 
-### 2. 向量数据库服务
+### 2. OpenAPI RAG服务 (OASRAGService)
 
-- QdrantVectorService：封装对Qdrant向量数据库的底层操作
+封装了RAG(检索增强生成)的核心逻辑，使用向量存储和LLM服务协同工作，提供API搜索和问答功能。
+
+### 3. 向量数据库服务
+
+- QdrantStore：封装对Qdrant向量数据库的底层操作
 - FAISSStore：封装对FAISS向量数据库的底层操作
 - PGVectorStore：封装对PostgreSQL pgvector的底层操作
 
-### 3. LLM服务 (LLMService)
+### 4. LLM服务 (LLMFactory)
 
 生成基于API上下文的自然语言回答，支持OpenAI、DeepSeek和SiliconFlow。
 
-### 4. 嵌入服务 (EmbeddingService)
+### 5. 嵌入服务 (EmbeddingFactory)
 
 生成文本的向量表示，支持OpenAI、本地(HuggingFace)和SiliconFlow。
 

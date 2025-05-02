@@ -10,7 +10,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.utils.openapi_parser import OpenAPIParser
-from app.services.vector_store import VectorStore
+from app.services.oas_rag_service import OASRAGService
 
 async def load_example_spec():
     """
@@ -30,25 +30,25 @@ async def load_example_spec():
     print(f"端点数量: {len(api_spec.endpoints)}")
     
     # 存储到向量数据库
-    vector_store = VectorStore()
-    vector_store.store_api_spec(api_spec)
+    rag_service = OASRAGService()
+    rag_service.store_api_spec(api_spec)
     
     print("规范已存储到向量数据库")
     
     # 示例查询
-    results = vector_store.search("如何获取用户列表", 3)
+    results = rag_service.search_by_version(query="如何获取用户列表", top_k=3)
     
     print("\n示例查询结果:")
     for i, result in enumerate(results, 1):
         print(f"\n【结果 {i}】")
-        print(f"相关度: {result['score']:.4f}")
-        print(f"路径: {result['path']}")
-        print(f"方法: {result['method']}")
-        print(f"API: {result['api_title']} v{result['api_version']}")
+        print(f"相关度: {result.get('score', 0):.4f}")
+        print(f"路径: {result.get('path', 'N/A')}")
+        print(f"方法: {result.get('method', 'N/A')}")
+        print(f"API: {result.get('api_title', 'N/A')} v{result.get('api_version', 'N/A')}")
         
-        endpoint = result['endpoint']
-        if endpoint and endpoint.summary:
-            print(f"摘要: {endpoint.summary}")
+        endpoint = result.get('endpoint')
+        if endpoint and endpoint.get('summary'):
+            print(f"摘要: {endpoint.get('summary')}")
 
 if __name__ == "__main__":
     # 运行异步函数

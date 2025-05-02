@@ -9,8 +9,8 @@ from app.factory.llm_factory import LLMFactory
 from app.factory.vector_store_factory import VectorStoreFactory, VectorStore
 from qdrant_client.http.models import Filter, FieldCondition, MatchValue
 
-class LangchainRAGService:
-    """使用 Langchain 实现的 RAG 服务"""
+class OASRAGService:
+    """使用 OpenAPI Specification 实现的 RAG 服务"""
     
     def __init__(self):
         """初始化服务"""

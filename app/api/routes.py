@@ -10,7 +10,7 @@ from app.factory.embedding_factory import EmbeddingFactory
 from app.factory.vector_store_factory import VectorStoreFactory
 from app.services.file_storage import FileStorage
 from app.utils.openapi_parser import OpenAPIParser
-from app.services.langchain_rag_service import LangchainRAGService
+from app.services.oas_rag_service import OASRAGService
 
 router = APIRouter(prefix="/api", tags=["API"])
 
@@ -21,7 +21,7 @@ def get_file_storage():
 
 
 def get_rag_service():
-    return LangchainRAGService()
+    return OASRAGService()
 
 
 @router.get("/info")
@@ -36,7 +36,7 @@ def get_info() -> Dict[str, Any]:
 @router.post("/search", response_model=SearchResponse)
 async def search_api(
     request: SearchRequest,
-    rag_service: LangchainRAGService = Depends(get_rag_service)
+    rag_service: OASRAGService = Depends(get_rag_service)
 ):
     """搜索API"""
     result = rag_service.search(request.query)
@@ -64,7 +64,7 @@ async def search_api(
 @router.post("/upload")
 async def upload_api_spec(
     request: UploadAPISpecRequest,
-    rag_service: LangchainRAGService = Depends(get_rag_service),
+    rag_service: OASRAGService = Depends(get_rag_service),
     file_storage: FileStorage = Depends(get_file_storage)
 ):
     """通过URL或内容上传API规范
@@ -149,7 +149,7 @@ async def upload_api_spec(
 @router.post("/upload_file")
 async def upload_file_api_spec(
     file: UploadFile = File(...),
-    rag_service: LangchainRAGService = Depends(get_rag_service),
+    rag_service: OASRAGService = Depends(get_rag_service),
     file_storage: FileStorage = Depends(get_file_storage)
 ):
     """通过本地文件上传API规范"""
@@ -212,7 +212,7 @@ async def upload_file_api_spec(
 
 @router.post("/clean")
 async def clean_collection(
-    rag_service: LangchainRAGService = Depends(get_rag_service),
+    rag_service: OASRAGService = Depends(get_rag_service),
     file_storage: FileStorage = Depends(get_file_storage)
 ):
     """清空向量数据库集合和磁盘上的API规范文件"""
@@ -306,7 +306,7 @@ async def list_files(
 @router.post("/delete")
 async def delete(
     file_name: str = Body(..., embed=True),
-    rag_service: LangchainRAGService = Depends(get_rag_service),
+    rag_service: OASRAGService = Depends(get_rag_service),
     file_storage: FileStorage = Depends(get_file_storage)
 ):
     """根据文件名删除磁盘上的文件并从向量数据库中删除对应的embedding
@@ -343,7 +343,7 @@ async def delete(
 @router.post("/search_api_by_version", response_model=SearchResponse)
 async def search_api_by_version(
     request: SearchRequest,
-    rag_service: LangchainRAGService = Depends(get_rag_service)
+    rag_service: OASRAGService = Depends(get_rag_service)
 ) -> SearchResponse:
     """根据 OpenAPI 版本搜索 API
     
