@@ -150,6 +150,10 @@ python app.py
    - 清理所有数据: `/api/clean` 接口
    - 删除向量数据: `/api/delete_vector_by_file_name` 接口
    - 健康检查: `/api/health` 接口
+   - API检测功能: 
+     - 检测代码库中的API(上传ZIP文件): `/api_detector/detect` 接口
+     - 获取支持的API类型列表: `/api_detector/supported_types` 接口
+     - 从GitHub仓库URL检测API: `/api_detector/detect_from_github` 接口
 
 详细使用方法请参考 [USAGE.md](USAGE.md) 
 

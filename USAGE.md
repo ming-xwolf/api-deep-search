@@ -374,6 +374,139 @@ GET /api/health
 }
 ```
 
+#### API检测功能
+
+API检测功能允许分析代码库中的API定义和实现，支持多种API类型的识别，包括REST API、WebSocket、gRPC、GraphQL和OpenAPI/Swagger规范。
+
+##### 1. 检测代码库中的API（上传ZIP文件）
+
+```http
+POST /api_detector/detect
+Content-Type: multipart/form-data
+
+file=@/path/to/your/code.zip
+```
+
+此接口接受一个ZIP格式的代码库文件，系统会自动分析并检测其中包含的API类型和定义。
+
+响应示例：
+
+```json
+{
+  "message": "检测完成，发现 15 个API端点",
+  "api_types": ["REST", "GraphQL"],
+  "api_count": 15,
+  "apis": [
+    {
+      "type": "REST",
+      "path": "/users",
+      "method": "GET",
+      "file": "src/controllers/user_controller.js",
+      "line": 12
+    },
+    {
+      "type": "GraphQL",
+      "operation": "Query.getUser",
+      "file": "src/graphql/schema.js",
+      "line": 25
+    }
+    // ...更多API端点
+  ]
+}
+```
+
+##### 2. 获取支持的API类型列表
+
+```http
+GET /api_detector/supported_types
+```
+
+此接口返回系统支持检测的所有API类型列表。
+
+响应示例：
+
+```json
+[
+  {
+    "name": "REST",
+    "description": "RESTful API端点，包括GET、POST、PUT、DELETE等HTTP方法"
+  },
+  {
+    "name": "WebSocket",
+    "description": "WebSocket连接和消息处理"
+  },
+  {
+    "name": "gRPC",
+    "description": "基于Protocol Buffers的gRPC服务定义"
+  },
+  {
+    "name": "GraphQL",
+    "description": "GraphQL查询和变更操作"
+  },
+  {
+    "name": "OpenAPI",
+    "description": "OpenAPI/Swagger规范文件"
+  }
+]
+```
+
+##### 3. 从GitHub仓库URL检测API
+
+```http
+POST /api_detector/detect_from_github
+Content-Type: application/json
+
+{
+  "github_url": "https://github.com/username/repo",
+  "branch": "main",
+  "use_http_download": false
+}
+```
+
+此接口接受一个GitHub仓库URL，系统会自动克隆仓库并检测其中包含的API类型和定义。参数说明：
+
+- `github_url`：GitHub仓库URL，格式如 https://github.com/username/repo
+- `branch`：要检测的分支名称，默认为仓库的默认分支（可选）
+- `use_http_download`：是否使用HTTP下载ZIP而不是git克隆，默认为false（可选）
+
+响应示例：
+
+```json
+{
+  "message": "检测完成，发现 20 个API端点",
+  "repository": "username/repo",
+  "branch": "main",
+  "api_types": ["REST", "gRPC", "OpenAPI"],
+  "api_count": 20,
+  "apis": [
+    {
+      "type": "REST",
+      "path": "/api/products",
+      "method": "GET",
+      "file": "src/controllers/product_controller.js",
+      "line": 8
+    },
+    {
+      "type": "gRPC",
+      "service": "ProductService",
+      "method": "GetProduct",
+      "file": "src/proto/product.proto",
+      "line": 15
+    },
+    {
+      "type": "OpenAPI",
+      "path": "/api/users/{id}",
+      "method": "GET",
+      "file": "docs/openapi.yaml",
+      "line": 42
+    }
+    // ...更多API端点
+  ]
+}
+```
+
+通过这些API检测接口，您可以快速分析任何代码库中的API实现，无需手动查找和整理API文档。
+
 ### 5. 示例代码
 
 项目提供了几个示例Python脚本，位于`examples`目录：
