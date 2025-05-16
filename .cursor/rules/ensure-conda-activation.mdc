@@ -1,0 +1,59 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Conda环境激活规则
+
+在使用本项目时，请确保在执行任何Python命令前已激活正确的conda环境：
+
+```bash
+conda activate api-deep-search
+```
+
+这个环境包含项目所需的所有依赖项，如向量数据库客户端、嵌入模型和Flask框架等。
+
+如果您使用Windows系统，命令相同：
+
+```bash
+conda activate api-deep-search
+```
+
+如果您还没有创建环境，请先使用以下命令：
+
+```bash
+# 使用environment.yml创建环境
+conda env create -f environment.yml
+
+# 然后激活环境
+conda activate api-deep-search
+```
+
+## 常用命令示例
+
+所有Python命令执行前必须先激活conda环境，例如：
+
+```bash
+# 激活环境
+conda activate api-deep-search
+
+# 启动应用服务
+python app.py
+
+# 运行示例脚本
+python examples/search_api.py
+python examples/load_spec.py
+
+# 运行测试
+python -m pytest tests/
+```
+
+如果您在Docker环境中运行，则不需要激活conda环境，因为Dockerfile已经配置好了相应的环境。
+
+## 注意事项
+
+- 如果遇到模块导入错误，通常是因为未激活环境或环境未正确安装
+- 项目会在`app.py`中使用uvicorn启动FastAPI服务
+- 每次终端会话开始时都需要重新激活环境
+
+请注意，执行 `app.py` 或任何其他Python脚本前，必须确保环境已激活，否则会出现依赖项缺失错误。
