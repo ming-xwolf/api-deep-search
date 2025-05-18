@@ -10,13 +10,6 @@ globs: **/*.py, src/**/*.py, tests/**/*.py
 
 # Python Best Practices
 
-## Project Structure
-- Use src-layout with `src/your_package_name/`
-- Place tests in `tests/` directory parallel to `src/`
-- Keep configuration in `config/` or as environment variables
-- Store requirements in `requirements.txt` or `pyproject.toml`
-- Place static files in `static/` directory
-- Use `templates/` for Jinja2 templates
 
 ## Code Style
 - Follow Black code formatting
