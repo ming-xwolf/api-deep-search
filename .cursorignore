@@ -1,0 +1,67 @@
+# Cursor忽略文件配置
+
+# 依赖目录
+node_modules/
+venv/
+.env/
+__pycache__/
+.venv/
+.virtualenv/
+dist/
+build/
+
+# 编译文件
+*.pyc
+*.class
+*.o
+*.so
+*.dll
+*.exe
+
+# 日志文件
+*.log
+logs/
+log/
+
+# 缓存文件
+.cache/
+.npm/
+.eslintcache
+.stylelintcache
+.pytest_cache/
+.coverage
+coverage/
+
+# IDE配置
+.idea/
+.vscode/
+*.sublime-*
+.DS_Store
+
+# 临时文件
+*.swp
+*.swo
+*~
+.tmp/
+tmp/
+
+# 大型数据文件
+*.csv
+*.json
+*.parquet
+*.sqlite
+*.db
+
+# 敏感信息
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.pem
+*.key
+
+# 生成的文件
+generated/
+.next/
+out/ 
